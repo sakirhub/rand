@@ -1,0 +1,44 @@
+{
+  "project": "Tattoo/Piercing Studio Management System",
+  "tech_stack": {
+    "frontend": "Next.js 15, Tailwind CSS, Shadcn/ui, Lucide Icons, Framer Motion",
+    "backend": "Supabase (Auth, Database, Storage)",
+    "state_management": "Context API / Zustand"
+  },
+  "user_roles": {
+    "admin": {
+      "permissions": [
+        "Manage all reservations",
+        "Approve/reject before/after photos",
+        "Manage users and roles"
+      ]
+    },
+    "designer": {
+      "permissions": [
+        "Create reservations",
+        "View all reservations"
+      ]
+    },
+    "tattoo_artist": {
+      "permissions": [
+        "View assigned reservations"
+      ]
+    },
+    "info": {
+      "permissions": [
+        "View reservations of referred customers"
+      ]
+    }
+  },
+  "database": {
+    "tables": [
+      "users",
+      "reservations"
+    ],
+    "relationships": [
+      {
+        "reservations.tattoo_artist": "users.id"
+      }
+    ]
+  }
+}
