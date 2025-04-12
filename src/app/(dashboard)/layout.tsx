@@ -1,9 +1,6 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import Link from "next/link";
-import { UserMenu } from "@/components/dashboard/UserMenu";
-import { Sidebar } from "@/components/dashboard/Sidebar";
 import { Navbar } from "@/components/dashboard/Navbar";
 import { AdminSidebar, DesignerSidebar } from "@/components/dashboard/Sidebar";
 

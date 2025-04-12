@@ -4,9 +4,10 @@ import { Reservation } from "@/types";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, User, DollarSign, Image } from "lucide-react";
+import { Calendar, Clock, User, DollarSign, Image as ImageIcon } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
+import Image from 'next/image';
 
 interface ReservationCardProps {
   reservation: Reservation;
@@ -53,7 +54,7 @@ export function ReservationCard({ reservation, role }: ReservationCardProps) {
           </div>
           {(reservation.image_before || reservation.image_after) && (
             <div className="flex items-center text-sm">
-              <Image className="mr-2 h-4 w-4" />
+              <ImageIcon className="mr-2 h-4 w-4" alt="Reservation image" />
               <span>
                 {reservation.image_before && "Öncesi "}
                 {reservation.image_before && reservation.image_after && "& "}

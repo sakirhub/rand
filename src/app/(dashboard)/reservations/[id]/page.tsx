@@ -1,18 +1,15 @@
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { tr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Edit, Trash } from "lucide-react";
-import { DeleteReservationButton } from "@/components/reservations/DeleteReservationButton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ChevronLeft as ChevronLeftIcon, Clock, Calendar, User, Pencil, Trash2 } from "lucide-react";
+import { ChevronLeft, Clock, Calendar, User } from "lucide-react";
 import { ReservationStatusBadge } from "@/components/reservations/ReservationStatusBadge";
 import { ReservationActions } from "@/components/reservations/ReservationActions";
 import { ReservationImage } from "@/components/reservations/ReservationImage";
+import Image from "next/image";
 
 export const metadata = {
   title: "Rezervasyon Detayı | Stüdyo Yönetim Sistemi",
@@ -140,7 +137,7 @@ export default async function ReservationDetailPage({
       <div className="container py-8">
         <div className="mb-6">
           <Link href="/reservations" className="flex items-center text-muted-foreground hover:text-foreground transition-colors">
-            <ChevronLeftIcon className="mr-1 h-4 w-4" />
+            <ChevronLeft className="mr-1 h-4 w-4" />
             Rezervasyonlara Dön
           </Link>
         </div>
@@ -167,7 +164,7 @@ export default async function ReservationDetailPage({
     <div className="container py-8">
       <div className="mb-6">
         <Link href="/reservations" className="flex items-center text-muted-foreground hover:text-foreground transition-colors">
-          <ChevronLeftIcon className="mr-1 h-4 w-4" />
+          <ChevronLeft className="mr-1 h-4 w-4" />
           Rezervasyonlara Dön
         </Link>
       </div>
@@ -270,11 +267,13 @@ export default async function ReservationDetailPage({
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {reservation.beforeImages.map((image) => (
+              {reservation.beforeImages.map((image: ReservationImage) => (
                 <div key={image.id} className="relative aspect-square rounded-md overflow-hidden border">
-                  <img 
-                    src={image.image_url} 
-                    alt="Öncesi fotoğrafı" 
+                  <Image 
+                    src={image.image_url}
+                    alt="Öncesi fotoğrafı"
+                    width={300}
+                    height={300}
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -291,11 +290,13 @@ export default async function ReservationDetailPage({
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {reservation.afterImages.map((image) => (
+              {reservation.afterImages.map((image: ReservationImage) => (
                 <div key={image.id} className="relative aspect-square rounded-md overflow-hidden border">
-                  <img 
-                    src={image.image_url} 
-                    alt="Sonrası fotoğrafı" 
+                  <Image 
+                    src={image.image_url}
+                    alt="Sonrası fotoğrafı"
+                    width={300}
+                    height={300}
                     className="w-full h-full object-cover"
                   />
                 </div>

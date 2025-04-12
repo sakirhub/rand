@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -48,6 +48,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import Image from 'next/image'
 
 // Rezervasyon formu için şema - customer_id ile
 const reservationFormSchema = z.object({
@@ -112,10 +113,8 @@ export function ReservationForm() {
   const { toast } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
-  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [images, setImages] = useState<File[]>([]);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
-  const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [newCustomerDialogOpen, setNewCustomerDialogOpen] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     email: "",
@@ -316,7 +315,7 @@ export function ReservationForm() {
   }, [selectedDate, selectedArtist, supabase, toast]);
   
   // Müşterileri getiren fonksiyon - Customers tablosundan müşterileri çeker
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     setIsLoadingCustomers(true);
     
     try {
@@ -360,7 +359,7 @@ export function ReservationForm() {
     } finally {
       setIsLoadingCustomers(false);
     }
-  };
+  }, [supabase, toast, form]);
   
   // Sanatçı seçildiğinde
   const handleArtistChange = (value: string) => {
@@ -502,7 +501,7 @@ export function ReservationForm() {
   // Bileşen mount olduğunda kullanıcıları getir
   useEffect(() => {
     fetchCustomers();
-  }, []);
+  }, [fetchCustomers]);
   
   // Form gönderme - rezervasyon oluşturma fonksiyonu
   const onSubmit = async (data: ReservationFormValues) => {
@@ -857,7 +856,13 @@ export function ReservationForm() {
                 <div className="flex flex-wrap gap-4 mb-4">
                   {imageUrls.map((url, index) => (
                     <div key={index} className="relative w-24 h-24 rounded-md overflow-hidden border">
-                      <img src={url} alt={`Referans ${index + 1}`} className="w-full h-full object-cover" />
+                      <Image 
+                        src={url}
+                        alt={`Referans ${index + 1}`}
+                        width={96}
+                        height={96}
+                        className="w-full h-full object-cover"
+                      />
                       <Button
                         type="button"
                         variant="destructive"

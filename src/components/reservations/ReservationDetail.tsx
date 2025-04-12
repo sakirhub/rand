@@ -38,6 +38,9 @@ interface ReservationDetailProps {
   userRole: string;
 }
 
+// Tip tanımlaması ekleyelim
+type Currency = "TRY" | "USD" | "EUR";
+
 export function ReservationDetail({ reservation, userRole }: ReservationDetailProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [status, setStatus] = useState(reservation.status);
@@ -67,7 +70,7 @@ export function ReservationDetail({ reservation, userRole }: ReservationDetailPr
     piercing: "Piercing",
   };
 
-  const currencySymbols = {
+  const currencySymbols: Record<Currency, string> = {
     TRY: "₺",
     USD: "$",
     EUR: "€",
@@ -213,7 +216,7 @@ export function ReservationDetail({ reservation, userRole }: ReservationDetailPr
                   <div>
                     <h3 className="font-medium">Fiyat</h3>
                     <p>
-                      {reservation.price} {currencySymbols[reservation.currency]}
+                      {reservation.price} {currencySymbols[reservation.currency as Currency]}
                       {reservation.transfer && " (Havale/EFT)"}
                     </p>
                   </div>
@@ -242,8 +245,9 @@ export function ReservationDetail({ reservation, userRole }: ReservationDetailPr
                     <Image
                       src={reservation.image_before}
                       alt="Öncesi"
-                      fill
-                      className="object-cover"
+                      width={300}
+                      height={200}
+                      className="w-full h-auto object-cover"
                     />
                   </div>
                 ) : (
@@ -273,8 +277,9 @@ export function ReservationDetail({ reservation, userRole }: ReservationDetailPr
                     <Image
                       src={reservation.image_after}
                       alt="Sonrası"
-                      fill
-                      className="object-cover"
+                      width={300}
+                      height={200}
+                      className="w-full h-auto object-cover"
                     />
                   </div>
                 ) : (

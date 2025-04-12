@@ -10,14 +10,12 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import {
   Select,
@@ -49,6 +47,21 @@ interface ArtistFormProps {
   artist?: any;
 }
 
+interface ArtistFormData {
+  name: string;
+  email: string;
+  phone?: string;
+  bio?: string;
+  specialties?: string[];
+  // ... diğer gerekli alanlar
+}
+
+interface ApiError {
+  message: string;
+  code?: string;
+  // ... diğer hata alanları
+}
+
 export function ArtistForm({ artist }: ArtistFormProps) {
   const router = useRouter();
   const supabase = createClientComponentClient();
@@ -65,7 +78,7 @@ export function ArtistForm({ artist }: ArtistFormProps) {
   });
   
   // Form gönderme işlemi
-  const onSubmit = async (data: ArtistFormValues) => {
+  const onSubmit = async (data: ArtistFormData) => {
     setIsLoading(true);
     
     try {
@@ -122,16 +135,25 @@ export function ArtistForm({ artist }: ArtistFormProps) {
       // Sanatçılar sayfasına yönlendir
       router.push("/admin/artists");
       router.refresh();
-    } catch (error: any) {
-      console.error("Sanatçı kaydedilirken hata oluştu:", error);
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
       toast({
         title: "Hata",
-        description: error.message || "Sanatçı kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.",
+        description: apiError.message || "Bir hata oluştu",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
+  };
+  
+  const handleError = (error: ApiError) => {
+    console.error("Form error:", error);
+    toast({
+      title: "Hata",
+      description: error.message || "Form gönderilirken bir hata oluştu",
+      variant: "destructive",
+    });
   };
   
   return (

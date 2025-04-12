@@ -2,9 +2,9 @@
 
 import * as React from "react"
 import { cn } from "@/lib/utils"
+import { TooltipPrimitive } from "@/components/ui/tooltip"
 
-interface TooltipProps {
-  children: React.ReactNode;
+interface TooltipProps extends React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Root> {
   content: React.ReactNode;
   side?: "top" | "right" | "bottom" | "left";
 }
@@ -86,10 +86,18 @@ export function Tooltip({ children, content, side = "top" }: TooltipProps) {
   );
 }
 
-export const TooltipTrigger = ({ asChild, children }: { asChild?: boolean, children: React.ReactNode }) => {
+export const TooltipTrigger = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-export const TooltipContent = ({ children, className, ...props }: { children: React.ReactNode, className?: string, [key: string]: any }) => {
+export const TooltipContent = ({ 
+  children, 
+  className, 
+  ...props 
+}: { 
+  children: React.ReactNode; 
+  className?: string; 
+  [key: string]: unknown; 
+}) => {
   return <div className={className} {...props}>{children}</div>;
 }; 

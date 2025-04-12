@@ -14,9 +14,16 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Upload, Save, User, Bell, Shield, Key } from "lucide-react";
 
+interface SettingsData {
+  id: string;
+  name: string;
+  email: string;
+  // ... diğer alanlar
+}
+
 export default function SettingsPage() {
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [user, setUser] = useState<SettingsData | null>(null);
+  const [profile, setProfile] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -84,11 +91,11 @@ export default function SettingsPage() {
     
     try {
       // Avatar yükleme
-      let avatarUrl = profile.avatar_url;
+      let avatarUrl = profile?.avatar_url;
       
       if (avatarFile) {
         const fileExt = avatarFile.name.split('.').pop();
-        const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+        const fileName = `${user?.id}/${Date.now()}.${fileExt}`;
         
         // Storage bucket kontrolü
         const { data: buckets, error: bucketsError } = await supabase
@@ -138,14 +145,14 @@ export default function SettingsPage() {
       const { error: updateError } = await supabase
         .from("users")
         .update({
-          name: profile.name,
-          bio: profile.bio,
+          name: profile?.name,
+          bio: profile?.bio,
           avatar_url: avatarUrl,
-          notification_email: profile.notification_email,
-          notification_sms: profile.notification_sms,
-          notification_push: profile.notification_push,
+          notification_email: profile?.notification_email,
+          notification_sms: profile?.notification_sms,
+          notification_push: profile?.notification_push,
         })
-        .eq("id", user.id);
+        .eq("id", user?.id);
       
       if (updateError) {
         throw updateError;

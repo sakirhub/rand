@@ -92,7 +92,7 @@ export function WeeklySchedule() {
     }
     
     fetchData();
-  }, [supabase, currentDate]);
+  }, [supabase, startOfCurrentWeek]);
   
   // Belirli bir gün ve sanatçı için rezervasyonları filtrele
   const getReservationsForDayAndArtist = (day: Date, artistId: string) => {
