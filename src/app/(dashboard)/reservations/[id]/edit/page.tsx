@@ -1,202 +1,178 @@
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
-import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { ChevronLeft } from "lucide-react";
-import { EditReservationForm } from "@/components/reservations/EditReservationForm";
+"use client";
 
-export const metadata = {
-  title: "Rezervasyon Düzenle | Stüdyo Yönetim Sistemi",
-  description: "Rezervasyon bilgilerini düzenleyin",
-};
+import {useEffect, useState, use} from "react";
+import {useRouter} from "next/navigation";
+import {createClientComponentClient} from "@supabase/auth-helpers-nextjs";
+import {EditReservationForm} from "@/components/reservations/EditReservationForm";
+import {useToast} from "@/components/ui/use-toast";
+import {Skeleton} from "@/components/ui/skeleton";
 
-export const dynamic = "force-dynamic";
+interface EditPageProps {
+    params: Promise<{
+        id: string;
+    }>;
+}
 
-async function getReservation(id: string) {
-  const supabase = createServerComponentClient({ cookies });
-  
-  try {
-    // Rezervasyonu getir
-    const { data: reservation, error } = await supabase
-      .from("reservations")
-      .select("*")
-      .eq("id", id)
-      .single();
-    
-    if (error) {
-      console.error("Rezervasyon getirme hatası:", error);
-      return null;
-    }
-    
-    if (!reservation) {
-      console.error("Rezervasyon bulunamadı");
-      return null;
-    }
-    
-    // Müşteri bilgilerini getir
-    const { data: customer, error: customerError } = await supabase
-      .from("customers")
-      .select("*")
-      .eq("id", reservation.customer_id)
-      .single();
-    
-    if (customerError) {
-      console.error("Müşteri getirme hatası:", customerError);
-    }
-    
-    // Rezervasyon fotoğraflarını getir
-    const { data: images, error: imagesError } = await supabase
-      .from("reservation_images")
-      .select("*")
-      .eq("reservation_id", id);
-    
-    if (imagesError) {
-      console.error("Rezervasyon fotoğrafları getirme hatası:", imagesError);
-    }
-    
-    // Ödeme bilgilerini getir - Payments tablosu henüz oluşturulmadığı için bu kısmı kaldırıyoruz
-    // const { data: payments, error: paymentsError } = await supabase
-    //   .from("payments")
-    //   .select("*")
-    //   .eq("reservation_id", id);
-    
-    // if (paymentsError) {
-    //   console.error("Ödeme bilgileri getirme hatası:", paymentsError);
-    // }
-    
-    // Sanatçı bilgilerini getir
-    console.log("Sanatçı ID:", reservation.artist_id);
-    
-    // Veritabanı tablolarını kontrol et
-    const { data: tables, error: tablesError } = await supabase
-      .from("information_schema.tables")
-      .select("table_name")
-      .eq("table_schema", "public");
-    
-    if (tablesError) {
-      console.error("Tablo listesi getirme hatası:", tablesError);
-    } else {
-      console.log("Veritabanı tabloları:", tables?.map(t => t.table_name).join(", "));
-    }
-    
-    // Artists tablosunu kontrol et
-    const { data: artistsColumns, error: artistsColumnsError } = await supabase
-      .from("information_schema.columns")
-      .select("column_name")
-      .eq("table_schema", "public")
-      .eq("table_name", "artists");
-    
-    if (artistsColumnsError) {
-      console.error("Artists tablosu kolonları getirme hatası:", artistsColumnsError);
-    } else {
-      console.log("Artists tablosu kolonları:", artistsColumns?.map(c => c.column_name).join(", "));
-    }
-    
-    let artist = null;
-    
-    if (!reservation.artist_id) {
-      console.log("Sanatçı ID bulunamadı, bu rezervasyona atanmış sanatçı yok.");
-    } else {
-      // Artists tablosundan sanatçı bilgilerini çek
-      const { data: artistData, error: artistError } = await supabase
-        .from("artists")
-        .select("id, name, email, phone, bio")
-        .eq("id", reservation.artist_id)
-        .maybeSingle();
-      
-      if (artistError) {
-        console.error("Artists tablosundan sanatçı getirme hatası:", artistError);
-        console.error("Hata detayları:", JSON.stringify(artistError, null, 2));
-      } else if (!artistData) {
-        console.log("Artists tablosunda sanatçı bulunamadı, ID:", reservation.artist_id);
-      } else {
-        console.log("Artists tablosundan sanatçı bulundu:", artistData.name);
-        artist = artistData;
-      }
-    }
-    
-    // Tüm verileri birleştir
-    return {
-      ...reservation,
-      customers: customer || null,
-      artists: artist || null,
-      reservation_images: images || []
+export default function EditPage({params}: EditPageProps) {
+    const router = useRouter();
+    const supabase = createClientComponentClient();
+    const {toast} = useToast();
+    const [reservation, setReservation] = useState<any>(null);
+    const [userRole, setUserRole] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const resolvedParams = use(params);
+
+    useEffect(() => {
+        const fetchReservation = async () => {
+            try {
+                // Get user role
+                const {data: {user}} = await supabase.auth.getUser();
+                if (!user) {
+                    router.push("/auth");
+                    return;
+                }
+
+                const {data: userData, error: userError} = await supabase
+                    .from("users")
+                    .select("role")
+                    .eq("id", user.id)
+                    .single();
+
+                if (userError) throw userError;
+                setUserRole(userData.role);
+
+                // Get reservation
+                const {data: reservationData, error: reservationError} = await supabase
+                    .from("reservations")
+                    .select(`
+                        *,
+                        customer:customers (
+                            id,
+                            name,
+                            email,
+                            phone
+                        ),
+                        reservation_images (
+                            id,
+                            image_url,
+                            is_before,
+                            created_at
+                        )
+                    `)
+                    .eq("id", resolvedParams.id)
+                    .single();
+
+                if (reservationError) {
+                    console.error("Rezervasyon getirme hatası:", reservationError);
+                    throw reservationError;
+                }
+
+                if (!reservationData) {
+                    throw new Error("Rezervasyon bulunamadı");
+                }
+
+                // Sanatçı bilgilerini getir
+                let artist = null;
+                if (reservationData.artist_id) {
+                    const {data: artistData, error: artistError} = await supabase
+                        .from("artists")
+                        .select("id, name, email, phone")
+                        .eq("id", reservationData.artist_id)
+                        .single();
+
+                    if (artistError) {
+                        console.error("Sanatçı bilgileri alınırken hata:", artistError);
+                    } else if (artistData) {
+                        artist = artistData;
+                    }
+                }
+
+                // Sonuçları birleştir
+                setReservation({
+                    ...reservationData,
+                    artist,
+                    customer: reservationData.customer,
+                    reservation_images: reservationData.reservation_images || []
+                });
+            } catch (error) {
+                console.error("Error fetching reservation:", error);
+                toast({
+                    title: "Hata",
+                    description: "Rezervasyon bilgileri alınamadı.",
+                    variant: "destructive",
+                });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchReservation();
+    }, [resolvedParams.id, router, supabase, toast]);
+
+    const handleSubmit = async (data: any) => {
+        try {
+            const updateData = {
+                status: data.status,
+                notes: data.notes,
+                price: data.price !== undefined ? Number(data.price) : reservation.price,
+                currency: data.currency || reservation.currency,
+                deposit_amount: data.deposit_amount !== undefined ? Number(data.deposit_amount) : reservation.deposit_amount,
+                deposit_received: data.deposit_received !== undefined ? data.deposit_received : reservation.deposit_received,
+                staff_id: data.staff_id || reservation.staff_id,
+                updated_at: new Date().toISOString()
+            };
+
+            const {error} = await supabase
+                .from("reservations")
+                .update(updateData)
+                .eq("id", resolvedParams.id);
+
+            if (error) throw error;
+
+            toast({
+                title: "Başarılı",
+                description: "Rezervasyon başarıyla güncellendi.",
+            });
+
+            router.push(`/reservations/${resolvedParams.id}`);
+            router.refresh();
+        } catch (error) {
+            console.error("Error updating reservation:", error);
+            toast({
+                title: "Hata",
+                description: "Rezervasyon güncellenirken bir hata oluştu.",
+                variant: "destructive",
+            });
+            throw error;
+        }
     };
-  } catch (error) {
-    console.error("Rezervasyon getirme işlemi sırasında hata:", error);
-    return null;
-  }
-}
 
-async function getUserRole() {
-  const supabase = createServerComponentClient({ cookies });
-  
-  try {
-    // Kullanıcı oturumunu kontrol et
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-      return null;
+    if (isLoading) {
+        return (
+            <div className="space-y-4 p-8">
+                <Skeleton className="h-8 w-[200px]" />
+                <Skeleton className="h-[500px] w-full" />
+            </div>
+        );
     }
-    
-    // Kullanıcı rolünü getir
-    const { data: user, error } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", session.user.id)
-      .single();
-    
-    if (error || !user) {
-      console.error("Kullanıcı rolü getirme hatası:", error);
-      return null;
-    }
-    
-    return user.role;
-  } catch (error) {
-    console.error("Kullanıcı rolü getirme işlemi sırasında hata:", error);
-    return null;
-  }
-}
 
-export default async function EditReservationPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const reservation = await getReservation(params.id);
-  const userRole = await getUserRole();
-  
-  // Rezervasyon bulunamadıysa 404 sayfasına yönlendir
-  if (!reservation) {
-    notFound();
-  }
-  
-  // Yetkilendirme kontrolü
-  if (userRole !== "admin" && userRole !== "designer") {
-    // Yetkisiz erişim, ana sayfaya yönlendir
-    redirect("/");
-  }
-  
-  return (
-    <div className="container py-8">
-      <div className="mb-6">
-        <Link href={`/reservations/${params.id}`} className="flex items-center text-muted-foreground hover:text-foreground transition-colors">
-          <ChevronLeft className="mr-1 h-4 w-4" />
-          Rezervasyon Detayına Dön
-        </Link>
-      </div>
-      
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">
-          Rezervasyon Düzenle
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          Rezervasyon bilgilerini güncelleyin
-        </p>
-      </div>
-      
-      <EditReservationForm reservation={reservation} userRole={userRole} />
-    </div>
-  );
+    if (!reservation) {
+        return (
+            <div className="p-8">
+                <h1 className="text-2xl font-bold mb-4">Rezervasyon Bulunamadı</h1>
+                <p>Bu rezervasyon bulunamadı veya erişim izniniz yok.</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="p-8">
+            <h1 className="text-2xl font-bold mb-8">Rezervasyon Düzenle</h1>
+            <EditReservationForm
+                reservation={reservation}
+                userRole={userRole}
+                onSubmit={handleSubmit}
+            />
+        </div>
+    );
 } 

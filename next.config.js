@@ -1,12 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['afcmrkzwybbqaspdpykm.supabase.co'],
-  },
-  eslint: {
-    ignoreDuringBuilds: true, // Build hatası almanı engeller
+    domains: ['afcmrkzwybbqaspdpykm.supabase.co', 'api.qrserver.com'],
+    dangerouslyAllowSVG: true,
+    contentDispositionType: 'attachment',
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
 }
-
 
 module.exports = nextConfig 

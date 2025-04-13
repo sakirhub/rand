@@ -1,53 +1,53 @@
 {
-    "project_overview": "A Tattoo/Piercing Studio Management System using Next.js 15, Tailwind, and Supabase.",
-    "features": [
-      "User authentication and role-based access control",
-      "Reservation management system",
-      "Photo upload (before/after) for verification",
-      "Admin panel with approval system",
-      "Sales source tracking for marketing insights"
-    ],
-    "data_structure": {
-      "users": {
-        "id": "UUID",
-        "name": "String",
-        "email": "String",
-        "role": "Enum (admin, designer, tattoo_artist, info)",
-        "created_at": "Timestamp"
-      },
-      "reservations": {
-        "id": "UUID",
-        "reservation_no": "String",
-        "image_before": "String (URL)",
-        "image_after": "String (URL)",
-        "type": "Enum (tattoo, piercing)",
-        "customer_name": "String",
-        "tattoo_artist": "UUID (FK - users)",
-        "sales_source": "String",
-        "date": "Timestamp",
-        "currency": "String",
-        "transfer": "Boolean",
-        "price": "Decimal",
-        "status": "Enum (pending, approved, completed)"
-      }
+  "project_overview": "A Tattoo/Piercing Studio Management System using Next.js 15, Tailwind, and Supabase.",
+  "features": [
+    "User authentication and role-based access control",
+    "Reservation management system",
+    "Photo upload (before/after) for verification",
+    "Admin panel with approval system",
+    "Sales source tracking for marketing insights"
+  ],
+  "data_structure": {
+    "users": {
+      "id": "UUID",
+      "name": "String",
+      "email": "String",
+      "role": "Enum (admin, designer, tattoo_artist, info)",
+      "created_at": "Timestamp"
     },
-    "api_endpoints": {
-      "auth": {
-        "signup": "POST /auth/signup",
-        "login": "POST /auth/login",
-        "logout": "POST /auth/logout"
-      },
-      "reservations": {
-        "get": "GET /reservations",
-        "create": "POST /reservations",
-        "update": "PATCH /reservations/:id",
-        "delete": "DELETE /reservations/:id"
-      },
-      "users": {
-        "list": "GET /users",
-        "add": "POST /users",
-        "update": "PATCH /users/:id"
-      }
+    "reservations": {
+      "id": "UUID",
+      "reservation_no": "String",
+      "image_before": "String (URL)",
+      "image_after": "String (URL)",
+      "type": "Enum (tattoo, piercing)",
+      "customer_name": "String",
+      "tattoo_artist": "UUID (FK - users)",
+      "sales_source": "String",
+      "date": "Timestamp",
+      "currency": "String",
+      "transfer": "Boolean",
+      "price": "Decimal",
+      "status": "Enum (pending, approved, completed)"
+    }
+  },
+  "api_endpoints": {
+    "auth": {
+      "signup": "POST /auth/signup",
+      "login": "POST /auth/login",
+      "logout": "POST /auth/logout"
+    },
+    "reservations": {
+      "get": "GET /reservations",
+      "create": "POST /reservations",
+      "update": "PATCH /reservations/:id",
+      "delete": "DELETE /reservations/:id"
+    },
+    "users": {
+      "list": "GET /users",
+      "add": "POST /users",
+      "update": "PATCH /users/:id"
     }
   }
+}
   
