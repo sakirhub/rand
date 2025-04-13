@@ -6,6 +6,24 @@ import {createClientComponentClient} from "@supabase/auth-helpers-nextjs";
 import {EditReservationForm} from "@/components/reservations/EditReservationForm";
 import {useToast} from "@/components/ui/use-toast";
 import {Skeleton} from "@/components/ui/skeleton";
+import {z} from "zod";
+
+// Rezervasyon düzenleme formu için şema
+const editReservationFormSchema = z.object({
+    status: z.enum(["pending", "confirmed", "completed", "cancelled"], {
+        required_error: "Lütfen durum seçin.",
+    }),
+    notes: z.string().optional(),
+    price: z.number().min(0, "Fiyat 0'dan küçük olamaz"),
+    currency: z.enum(["EUR", "USD", "TRY"], {
+        required_error: "Para birimi seçiniz",
+    }),
+    deposit_amount: z.number().min(0, "Ön ödeme tutarı 0'dan küçük olamaz").optional(),
+    deposit_received: z.boolean().default(false),
+    staff_id: z.string().optional(),
+});
+
+type EditReservationFormValues = z.infer<typeof editReservationFormSchema>;
 
 interface EditPageProps {
     params: Promise<{
@@ -13,7 +31,7 @@ interface EditPageProps {
     }>;
 }
 
-export default function EditPage({params}: EditPageProps) {
+export default function EditPage({ params }: EditPageProps) {
     const router = useRouter();
     const supabase = createClientComponentClient();
     const {toast} = useToast();
@@ -109,8 +127,10 @@ export default function EditPage({params}: EditPageProps) {
         fetchReservation();
     }, [resolvedParams.id, router, supabase, toast]);
 
-    const handleSubmit = async (data: any) => {
+    const handleSubmit = async (data: EditReservationFormValues) => {
         try {
+            console.log("Gelen form verileri:", data);
+            
             const updateData = {
                 status: data.status,
                 notes: data.notes,
@@ -121,13 +141,19 @@ export default function EditPage({params}: EditPageProps) {
                 staff_id: data.staff_id || reservation.staff_id,
                 updated_at: new Date().toISOString()
             };
+            
+            console.log("Güncellenecek veriler:", updateData);
+            console.log("Rezervasyon ID:", resolvedParams.id);
 
             const {error} = await supabase
                 .from("reservations")
                 .update(updateData)
                 .eq("id", resolvedParams.id);
 
-            if (error) throw error;
+            if (error) {
+                console.error("Supabase güncelleme hatası:", error);
+                throw error;
+            }
 
             toast({
                 title: "Başarılı",

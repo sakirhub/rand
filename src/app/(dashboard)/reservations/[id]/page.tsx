@@ -33,6 +33,19 @@ interface ReservationImage {
     created_at?: string;
 }
 
+// Para birimi sembolleri
+const currencySymbols: Record<string, string> = {
+    TRY: "₺",
+    USD: "$",
+    EUR: "€"
+};
+
+// Para birimi formatlama fonksiyonu
+const formatCurrency = (amount: number, currency: string) => {
+    const symbol = currencySymbols[currency] || "₺";
+    return `${amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`;
+};
+
 async function getReservation(id: string) {
     const supabase = createServerComponentClient({cookies});
     try {
@@ -224,9 +237,9 @@ export default async function ReservationDetailPage({
         };
 
         // Toplam ödeme tutarı hesapla
-        const totalPaid = reservation.payments?.reduce((sum: number, payment: {
+        const totalPaid = (reservation.payments?.reduce((sum: number, payment: {
             amount: number
-        }) => sum + payment.amount, 0) || 0;
+        }) => sum + payment.amount, 0) || 0) + (reservation.deposit_amount || 0);
         const remainingAmount = reservation.price - totalPaid;
 
         return (
@@ -325,24 +338,23 @@ export default async function ReservationDetailPage({
                                 <CardContent className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <div className="text-sm font-medium text-muted-foreground">Toplam Tutar
-                                            </div>
+                                            <div className="text-sm font-medium text-muted-foreground">Toplam Tutar</div>
                                             <div className="text-lg font-semibold">
-                                                {reservation.price.toLocaleString('tr-TR')} ₺
+                                                {formatCurrency(reservation.price, reservation.currency)}
                                             </div>
                                         </div>
 
                                         <div className="space-y-2">
                                             <div className="text-sm font-medium text-muted-foreground">Ödenen</div>
                                             <div className="text-lg font-semibold text-green-600">
-                                                {totalPaid.toLocaleString('tr-TR')} ₺
+                                                {formatCurrency(totalPaid, reservation.currency)}
                                             </div>
                                         </div>
 
                                         <div className="space-y-2">
                                             <div className="text-sm font-medium text-muted-foreground">Kalan</div>
                                             <div className="text-lg font-semibold text-orange-600">
-                                                {remainingAmount.toLocaleString('tr-TR')} ₺
+                                                {formatCurrency(remainingAmount, reservation.currency)}
                                             </div>
                                         </div>
 
@@ -359,7 +371,7 @@ export default async function ReservationDetailPage({
                                             <AlertCircle className="h-4 w-4"/>
                                             <AlertTitle>Ödenmemiş Tutar</AlertTitle>
                                             <AlertDescription>
-                                                Bu rezervasyon için {remainingAmount.toLocaleString('tr-TR')} ₺
+                                                Bu rezervasyon için {formatCurrency(remainingAmount, reservation.currency)}
                                                 ödenmemiş tutar bulunmaktadır.
                                             </AlertDescription>
                                         </Alert>

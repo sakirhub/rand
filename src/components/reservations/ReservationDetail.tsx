@@ -1,20 +1,52 @@
 "use client";
 
-import {useState} from "react";
+import {useState, useEffect} from "react";
 import {useRouter} from "next/navigation";
 import {createClientComponentClient} from "@supabase/auth-helpers-nextjs";
-import {Reservation} from "@/types";
+import {Reservation} from "@/types/reservation";
 import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card";
 import {Badge} from "@/components/ui/badge";
 import {Button} from "@/components/ui/button";
-import {format} from "date-fns";
+import {format, parseISO} from "date-fns";
 import {tr} from "date-fns/locale";
-import {Calendar, Clock, DollarSign, FileText, Info, Mail, MapPin, Phone, Upload, User} from "lucide-react";
+import {Calendar, Clock, DollarSign, FileText, Info, Mail, MapPin, Phone, Upload, User, X} from "lucide-react";
 import Image from "next/image";
+import {TabsContent} from "@/components/ui/tabs";
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from "@/components/ui/table";
+import {PlusCircle, Trash2} from "lucide-react";
+import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle} from "@/components/ui/dialog";
+import {Label} from "@/components/ui/label";
+import {Input} from "@/components/ui/input";
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
+import {toast} from "@/components/ui/use-toast";
+import {Alert, AlertDescription, AlertTitle} from "@/components/ui/alert";
+import {AlertCircle} from "lucide-react";
+
+interface Customer {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    address?: string;
+}
+
+interface ReservationImage {
+    id: string;
+    url: string;
+    type: string;
+}
 
 interface ReservationDetailProps {
-    reservation: Reservation & { tattoo_artist_user?: { name: string } };
+    reservation: Reservation;
     userRole: string;
+}
+
+interface Payment {
+    id: string;
+    amount: number;
+    payment_type: string;
+    payment_date: string;
+    status: string;
 }
 
 // Helper functions for status
@@ -48,27 +80,83 @@ const getStatusLabel = (status: string) => {
     }
 };
 
-export function ReservationDetail({reservation, userRole}: ReservationDetailProps) {
+export function ReservationDetail({reservation: initialReservation, userRole}: ReservationDetailProps) {
     const [isUpdating, setIsUpdating] = useState(false);
-    const [status, setStatus] = useState(reservation.status);
-    const [notes, setNotes] = useState(reservation.notes || "");
+    const [status, setStatus] = useState(initialReservation.status);
+    const [notes, setNotes] = useState(initialReservation.notes || "");
     const [beforeImage, setBeforeImage] = useState<File | null>(null);
     const [afterImage, setAfterImage] = useState<File | null>(null);
     const [uploadingBefore, setUploadingBefore] = useState(false);
     const [uploadingAfter, setUploadingAfter] = useState(false);
+    const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+    const [payments, setPayments] = useState<Payment[]>([]);
+    const [newPayment, setNewPayment] = useState({
+        amount: 0,
+        payment_type: "cash",
+        payment_date: format(new Date(), "yyyy-MM-dd"),
+    });
+    const [reservation, setReservation] = useState<Reservation>(initialReservation);
 
     const router = useRouter();
     const supabase = createClientComponentClient();
 
-    const typeLabels = {
+    const typeLabels: Record<string, string> = {
         tattoo: "Dövme",
         piercing: "Piercing",
     };
 
-    const currencySymbols = {
+    const currencySymbols: Record<string, string> = {
         TRY: "₺",
         USD: "$",
-        EUR: "€",
+        EUR: "€"
+    };
+
+    useEffect(() => {
+        const fetchReservationDetails = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('reservations')
+                    .select(`
+                        *,
+                        customer:customers(*),
+                        tattoo_artist_user:artists(*)
+                    `)
+                    .eq('id', initialReservation.id)
+                    .single();
+
+                if (error) throw error;
+
+                if (data) {
+                    console.log("Fetched reservation data:", data);
+                    // Ensure currency is set and log it
+                    const updatedData = {
+                        ...data,
+                        currency: data.currency || initialReservation.currency || "TRY"
+                    };
+                    console.log("Currency from database:", data.currency);
+                    console.log("Initial reservation currency:", initialReservation.currency);
+                    console.log("Updated reservation data:", updatedData);
+                    setReservation(updatedData);
+                }
+            } catch (error) {
+                console.error("Error fetching reservation details:", error);
+            }
+        };
+
+        fetchReservationDetails();
+    }, [initialReservation.id, initialReservation.currency, supabase]);
+
+    useEffect(() => {
+        console.log("Initial reservation:", initialReservation);
+        console.log("Current reservation:", reservation);
+    }, [initialReservation, reservation]);
+
+    const formatCurrency = (amount: number, currency: string) => {
+        console.log('Formatting currency:', { amount, currency });
+        const symbol = currencySymbols[currency] || "₺";
+        const formatted = `${amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`;
+        console.log('Formatted result:', formatted);
+        return formatted;
     };
 
     const handleStatusChange = async () => {
@@ -167,8 +255,175 @@ export function ReservationDetail({reservation, userRole}: ReservationDetailProp
     };
 
     // Tarih ve saati formatla
-    const formattedDate = format(new Date(reservation.date), "PPP", {locale: tr});
-    const formattedTime = format(new Date(reservation.date), "HH:mm");
+    const formattedDate = reservation.date ? format(parseISO(reservation.date), "PPP", {locale: tr}) : "-";
+    const formattedTime = reservation.date ? format(parseISO(reservation.date), "HH:mm", {locale: tr}) : "-";
+
+    // Özet bilgileri
+    const summaryItems = [
+        {label: "Durum", value: getStatusLabel(reservation.status)},
+        {label: "Hizmet", value: typeLabels[reservation.type] || reservation.type},
+        {label: "Tarih", value: reservation.date ? format(parseISO(reservation.date), 'dd MMMM yyyy', { locale: tr }) : '-'},
+        {label: "Saat", value: `${reservation.start_time?.substring(0, 5) || ''} - ${reservation.end_time?.substring(0, 5) || ''}`},
+        {label: "Süre", value: `${reservation.duration} dakika`},
+        {label: "Ücret", value: formatCurrency(reservation.price, reservation.currency)},
+        {label: "Ön Ödeme", value: formatCurrency(reservation.deposit_amount || 0, reservation.currency)},
+        {label: "Kalan", value: formatCurrency(reservation.remaining_amount, reservation.currency)},
+    ];
+
+    // Ödeme türü metinleri
+    const getPaymentTypeText = (type: string) => {
+        const types: Record<string, string> = {
+            cash: "Nakit",
+            credit_card: "Kredi Kartı",
+            bank_transfer: "Banka Transferi",
+        };
+        return types[type] || type;
+    };
+
+    // Ödeme durumu metinleri
+    const getPaymentStatusText = (status: string) => {
+        const statuses: Record<string, string> = {
+            completed: "Tamamlandı",
+            pending: "Beklemede",
+            cancelled: "İptal Edildi",
+        };
+        return statuses[status] || status;
+    };
+
+    // Ödeme silme fonksiyonu
+    const handleDeletePayment = async (paymentId: string) => {
+        try {
+            const {error} = await supabase
+                .from("payments")
+                .delete()
+                .eq("id", paymentId);
+
+            if (error) throw error;
+
+            setPayments(payments.filter(payment => payment.id !== paymentId));
+            toast({
+                title: "Başarılı",
+                description: "Ödeme başarıyla silindi.",
+            });
+        } catch (error) {
+            console.error("Ödeme silinirken hata:", error);
+            toast({
+                title: "Hata",
+                description: "Ödeme silinirken bir hata oluştu.",
+                variant: "destructive",
+            });
+        }
+    };
+
+    // Yeni ödeme ekleme fonksiyonu
+    const handleAddPayment = async () => {
+        try {
+            const {data, error} = await supabase
+                .from("payments")
+                .insert({
+                    reservation_id: reservation.id,
+                    amount: newPayment.amount,
+                    payment_type: newPayment.payment_type,
+                    payment_date: newPayment.payment_date,
+                    status: "completed",
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            setPayments([...payments, data]);
+            setShowPaymentDialog(false);
+            setNewPayment({
+                amount: 0,
+                payment_type: "cash",
+                payment_date: format(new Date(), "yyyy-MM-dd"),
+            });
+
+            toast({
+                title: "Başarılı",
+                description: "Ödeme başarıyla eklendi.",
+            });
+        } catch (error) {
+            console.error("Ödeme eklenirken hata:", error);
+            toast({
+                title: "Hata",
+                description: "Ödeme eklenirken bir hata oluştu.",
+                variant: "destructive",
+            });
+        }
+    };
+
+    // Ödemeleri getir
+    useEffect(() => {
+        const fetchPayments = async () => {
+            try {
+                const {data, error} = await supabase
+                    .from("payments")
+                    .select("*")
+                    .eq("reservation_id", reservation.id)
+                    .order("payment_date", {ascending: false});
+
+                if (error) throw error;
+
+                setPayments(data || []);
+            } catch (error) {
+                console.error("Ödemeler getirilirken hata:", error);
+                toast({
+                    title: "Hata",
+                    description: "Ödemeler yüklenirken bir hata oluştu.",
+                    variant: "destructive",
+                });
+            }
+        };
+
+        fetchPayments();
+    }, [reservation.id, supabase, toast]);
+
+    // Tarih formatlama
+    const formatDate = (dateStr: string | undefined): string => {
+        if (!dateStr) return "-";
+        try {
+            const parsedDate = parseISO(dateStr);
+            return format(parsedDate, "dd MMMM yyyy", { locale: tr });
+        } catch (error) {
+            console.error("Tarih formatlanırken hata:", error);
+            return "-";
+        }
+    };
+
+    const handleRemoveImage = async (index: number) => {
+        if (!reservation.reservation_images) return;
+        
+        const imageToRemove = reservation.reservation_images[index];
+        if (!imageToRemove) return;
+
+        try {
+            const { error } = await supabase
+                .from('reservation_images')
+                .delete()
+                .eq('id', imageToRemove.id);
+
+            if (error) throw error;
+
+            // Update local state
+            const updatedImages = [...reservation.reservation_images];
+            updatedImages.splice(index, 1);
+            setReservation({ ...reservation, reservation_images: updatedImages });
+
+            toast({
+                title: "Başarılı",
+                description: "Görsel başarıyla kaldırıldı",
+            });
+        } catch (error) {
+            console.error('Error removing image:', error);
+            toast({
+                title: "Hata",
+                description: "Görsel kaldırılırken bir hata oluştu",
+                variant: "destructive",
+            });
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -189,30 +444,12 @@ export function ReservationDetail({reservation, userRole}: ReservationDetailProp
                                 <CardTitle className="text-lg">Randevu Bilgileri</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="flex items-center space-x-2">
-                                    <Info className="h-4 w-4 text-muted-foreground"/>
-                                    <span>Rezervasyon ID: {reservation.id}</span>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <Calendar className="h-4 w-4 text-muted-foreground"/>
-                                    <span>Tarih: {formattedDate}</span>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <Clock className="h-4 w-4 text-muted-foreground"/>
-                                    <span>Saat: {formattedTime}</span>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <Info className="h-4 w-4 text-muted-foreground"/>
-                                    <span>İşlem Türü: {typeLabels[reservation.type] || reservation.type}</span>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <Info className="h-4 w-4 text-muted-foreground"/>
-                                    <span>Hizmet: {reservation.service_type}</span>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <Clock className="h-4 w-4 text-muted-foreground"/>
-                                    <span>Süre: {reservation.duration} dakika</span>
-                                </div>
+                                {summaryItems.map((item, index) => (
+                                    <div key={index} className="flex items-center space-x-2">
+                                        <Info className="h-4 w-4 text-muted-foreground"/>
+                                        <span>{item.label}: {item.value}</span>
+                                    </div>
+                                ))}
                                 {reservation.tattoo_artist_user ? (
                                     <div className="flex items-center space-x-2">
                                         <User className="h-4 w-4 text-muted-foreground"/>
@@ -245,10 +482,6 @@ export function ReservationDetail({reservation, userRole}: ReservationDetailProp
                                     <Info className="h-4 w-4 text-muted-foreground"/>
                                     <span>Transfer: {reservation.transfer ? "Evet" : "Hayır"}</span>
                                 </div>
-                                <div className="flex items-center space-x-2">
-                                    <Info className="h-4 w-4 text-muted-foreground"/>
-                                    <span>Durum: {getStatusLabel(reservation.status)}</span>
-                                </div>
                             </CardContent>
                         </Card>
 
@@ -259,24 +492,24 @@ export function ReservationDetail({reservation, userRole}: ReservationDetailProp
                             <CardContent className="space-y-4">
                                 <div className="flex items-center space-x-2">
                                     <User className="h-4 w-4 text-muted-foreground"/>
-                                    <span>{reservation.customers?.name || "Müşteri bilgisi yok"}</span>
+                                    <span>{reservation.customer?.name || "Müşteri bilgisi yok"}</span>
                                 </div>
-                                {reservation.customers?.email && (
+                                {reservation.customer?.email && (
                                     <div className="flex items-center space-x-2">
                                         <Mail className="h-4 w-4 text-muted-foreground"/>
-                                        <span>{reservation.customers.email}</span>
+                                        <span>{reservation.customer.email}</span>
                                     </div>
                                 )}
-                                {reservation.customers?.phone && (
+                                {reservation.customer?.phone && (
                                     <div className="flex items-center space-x-2">
                                         <Phone className="h-4 w-4 text-muted-foreground"/>
-                                        <span>{reservation.customers.phone}</span>
+                                        <span>{reservation.customer.phone}</span>
                                     </div>
                                 )}
-                                {reservation.customers?.address && (
+                                {reservation.customer?.address && (
                                     <div className="flex items-center space-x-2">
                                         <MapPin className="h-4 w-4 text-muted-foreground"/>
-                                        <span>{reservation.customers.address}</span>
+                                        <span>{reservation.customer.address}</span>
                                     </div>
                                 )}
                             </CardContent>
@@ -289,22 +522,24 @@ export function ReservationDetail({reservation, userRole}: ReservationDetailProp
                             <CardTitle className="text-lg">Ödeme Bilgileri</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="flex items-center space-x-2">
-                                <DollarSign className="h-4 w-4 text-muted-foreground"/>
-                                <span>Toplam Ücret: {reservation.price} {reservation.currency}</span>
-                            </div>
-                            {reservation.deposit_amount && reservation.deposit_amount > 0 && (
-                                <div className="flex items-center space-x-2">
-                                    <DollarSign className="h-4 w-4 text-muted-foreground"/>
-                                    <div className="flex flex-col">
-                                        <span>Ön Ödeme: {reservation.deposit_amount} {reservation.currency}</span>
-                                        <span
-                                            className={`text-sm ${reservation.deposit_received ? 'text-green-600' : 'text-yellow-600'}`}>
-                      {reservation.deposit_received ? 'Ödendi' : 'Bekliyor'}
-                    </span>
-                                    </div>
+                            <div className="space-y-2">
+                                <div className="text-sm font-medium text-muted-foreground">Toplam Tutar</div>
+                                <div className="text-lg font-semibold">
+                                    {formatCurrency(reservation.price, reservation.currency)}
                                 </div>
-                            )}
+                            </div>
+                            <div className="space-y-2">
+                                <div className="text-sm font-medium text-muted-foreground">Ödenen</div>
+                                <div className="text-lg font-semibold text-green-600">
+                                    {formatCurrency(reservation.deposit_amount, reservation.currency)}
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <div className="text-sm font-medium text-muted-foreground">Kalan</div>
+                                <div className="text-lg font-semibold text-orange-600">
+                                    {formatCurrency(reservation.remaining_amount, reservation.currency)}
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
 
@@ -331,19 +566,21 @@ export function ReservationDetail({reservation, userRole}: ReservationDetailProp
                             </CardHeader>
                             <CardContent>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    {reservation.reservation_images.map((image, index) => (
-                                        <div key={image.id} className="relative w-32 h-32 rounded-md overflow-hidden">
+                                    {reservation.reservation_images.map((image: ReservationImage, index: number) => (
+                                        <div key={image.id} className="relative group">
                                             <Image
-                                                src={image.image_url}
-                                                alt={`Dövme - ${reservation.reference_no || reservation.id}`}
-                                                width={128}
-                                                height={128}
-                                                className="object-cover"
-                                                onError={(e) => {
-                                                    console.error('Image load error:', e);
-                                                    e.currentTarget.src = '/placeholder.jpg';
-                                                }}
+                                                src={image.url}
+                                                alt={`Reservation image ${index + 1}`}
+                                                width={200}
+                                                height={200}
+                                                className="object-cover rounded-lg"
                                             />
+                                            <button
+                                                onClick={() => handleRemoveImage(index)}
+                                                className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
                                         </div>
                                     ))}
                                 </div>
@@ -414,6 +651,138 @@ export function ReservationDetail({reservation, userRole}: ReservationDetailProp
                     )}
                 </CardContent>
             </Card>
+
+            {/* Ödemeler sekmesi */}
+            <TabsContent value="payments" className="space-y-4">
+                <div className="grid gap-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="text-lg font-medium">Ödeme Bilgileri</h3>
+                            <p className="text-sm text-muted-foreground">
+                                Toplam: {formatCurrency(reservation.price, reservation.currency)}
+                            </p>
+                        </div>
+                        <Button onClick={() => setShowPaymentDialog(true)}>
+                            <PlusCircle className="mr-2 h-4 w-4"/>
+                            Ödeme Ekle
+                        </Button>
+                    </div>
+
+                    <div className="rounded-md border">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Tarih</TableHead>
+                                    <TableHead>Tutar</TableHead>
+                                    <TableHead>Ödeme Türü</TableHead>
+                                    <TableHead>Durum</TableHead>
+                                    <TableHead>İşlemler</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {payments.map((payment) => (
+                                    <TableRow key={payment.id}>
+                                        <TableCell>
+                                            {format(new Date(payment.payment_date), "dd MMMM yyyy", {locale: tr})}
+                                        </TableCell>
+                                        <TableCell>{formatCurrency(payment.amount, reservation.currency)}</TableCell>
+                                        <TableCell>{getPaymentTypeText(payment.payment_type)}</TableCell>
+                                        <TableCell>
+                                            <Badge variant={payment.status === "completed" ? "default" : "secondary"}>
+                                                {getPaymentStatusText(payment.status)}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleDeletePayment(payment.id)}
+                                            >
+                                                <Trash2 className="h-4 w-4"/>
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </div>
+            </TabsContent>
+
+            {/* Yeni ödeme diyaloğu */}
+            <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Yeni Ödeme Ekle</DialogTitle>
+                        <DialogDescription>
+                            Rezervasyon için yeni bir ödeme ekleyin.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="amount" className="text-right">
+                                Tutar ({reservation.currency})
+                            </Label>
+                            <Input
+                                id="amount"
+                                type="number"
+                                value={newPayment.amount}
+                                onChange={(e) => setNewPayment({...newPayment, amount: parseFloat(e.target.value)})}
+                                className="col-span-3"
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="payment_type" className="text-right">
+                                Ödeme Türü
+                            </Label>
+                            <Select
+                                value={newPayment.payment_type}
+                                onValueChange={(value) => setNewPayment({...newPayment, payment_type: value})}
+                            >
+                                <SelectTrigger className="col-span-3">
+                                    <SelectValue placeholder="Ödeme türü seçin"/>
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="cash">Nakit</SelectItem>
+                                    <SelectItem value="credit_card">Kredi Kartı</SelectItem>
+                                    <SelectItem value="bank_transfer">Banka Transferi</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="payment_date" className="text-right">
+                                Tarih
+                            </Label>
+                            <Input
+                                id="payment_date"
+                                type="date"
+                                value={newPayment.payment_date}
+                                onChange={(e) => setNewPayment({...newPayment, payment_date: e.target.value})}
+                                className="col-span-3"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>
+                            İptal
+                        </Button>
+                        <Button onClick={handleAddPayment}>
+                            Ödeme Ekle
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {reservation.remaining_amount > 0 && (
+                <Alert className="mt-4">
+                    <AlertCircle className="h-4 w-4"/>
+                    <AlertTitle>Ödenmemiş Tutar</AlertTitle>
+                    <AlertDescription>
+                        Bu rezervasyon için {formatCurrency(reservation.remaining_amount, reservation.currency)}
+                        ödenmemiş tutar bulunmaktadır.
+                    </AlertDescription>
+                </Alert>
+            )}
         </div>
     );
 } 

@@ -6,7 +6,7 @@ import {createClientComponentClient} from "@supabase/auth-helpers-nextjs";
 import {zodResolver} from "@hookform/resolvers/zod";
 import {useForm} from "react-hook-form";
 import * as z from "zod";
-import {format} from "date-fns";
+import {format, addHours} from "date-fns";
 import {tr} from "date-fns/locale";
 import {Button} from "@/components/ui/button";
 import {Form, FormControl, FormField, FormItem, FormLabel, FormMessage,} from "@/components/ui/form";
@@ -35,6 +35,12 @@ type Staff = {
     email: string;
     phone: string;
 };
+
+interface TimeSlot {
+    start: string;
+    end: string;
+    available: boolean;
+}
 
 // Rezervasyon düzenleme formu için şema
 const editReservationFormSchema = z.object({
@@ -85,6 +91,10 @@ export function EditReservationForm({
     const [artists, setArtists] = useState<Artist[]>([]);
     const [staff, setStaff] = useState<Staff[]>([]);
     const [isLoadingStaff, setIsLoadingStaff] = useState(false);
+
+    // TimeSlots için state
+    const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+    const [isLoadingTimeSlots, setIsLoadingTimeSlots] = useState(false);
 
     // Form başlangıç değerleri
     const defaultValues: Partial<EditReservationFormValues> = {
@@ -286,6 +296,7 @@ export function EditReservationForm({
             }
 
             // Form verilerini gönder
+            console.log("Form verileri gönderiliyor:", data);
             await onSubmit(data);
 
             toast({
@@ -310,6 +321,75 @@ export function EditReservationForm({
     const reservationDate = format(new Date(reservation.date), "d MMMM yyyy", {locale: tr});
     const startTime = reservation.start_time ? reservation.start_time.substring(0, 5) : "";
     const endTime = reservation.end_time ? reservation.end_time.substring(0, 5) : "";
+
+    const loadTimeSlots = async (date: string) => {
+        setIsLoadingTimeSlots(true);
+        try {
+            // Seçilen tarihe göre zaman dilimlerini getir
+            const { data: existingReservations, error: reservationsError } = await supabase
+                .from('reservations')
+                .select('start_time, end_time')
+                .eq('date', date)
+                .neq('id', reservation.id); // Mevcut rezervasyonu hariç tut
+
+            if (reservationsError) {
+                toast({
+                    variant: "destructive",
+                    title: "Hata",
+                    description: "Zaman dilimleri yüklenirken bir hata oluştu"
+                });
+                return;
+            }
+
+            // Çalışma saatleri: 10:00 - 20:00
+            const workingHours = {
+                start: '10:00',
+                end: '20:00',
+            };
+
+            // 1 saatlik zaman dilimleri oluştur
+            const slots: TimeSlot[] = [];
+            let currentTime = workingHours.start;
+
+            while (currentTime < workingHours.end) {
+                const endTime = addHours(parseTime(currentTime), 1);
+                const isAvailable = !existingReservations?.some(
+                    (r) => r.start_time <= currentTime && r.end_time > currentTime
+                );
+
+                slots.push({
+                    start: currentTime,
+                    end: formatTime(endTime),
+                    available: isAvailable,
+                });
+
+                currentTime = formatTime(endTime);
+            }
+
+            setTimeSlots(slots);
+        } catch (error) {
+            console.error('Error loading time slots:', error);
+            toast({
+                variant: "destructive",
+                title: "Hata",
+                description: "Zaman dilimleri yüklenirken bir hata oluştu"
+            });
+        } finally {
+            setIsLoadingTimeSlots(false);
+        }
+    };
+
+    // Yardımcı fonksiyonlar
+    const parseTime = (time: string): Date => {
+        const [hours, minutes] = time.split(':').map(Number);
+        const date = new Date();
+        date.setHours(hours, minutes, 0, 0);
+        return date;
+    };
+
+    const formatTime = (date: Date): string => {
+        return date.toTimeString().slice(0, 5);
+    };
 
     return (
         <Form {...form}>

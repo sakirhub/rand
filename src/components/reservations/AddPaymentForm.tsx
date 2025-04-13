@@ -17,6 +17,7 @@ import {Alert, AlertDescription, AlertTitle} from "@/components/ui/alert";
 import {AlertCircle, Loader2} from "lucide-react";
 import {toast} from "sonner";
 import {createClientComponentClient} from "@supabase/auth-helpers-nextjs";
+import {Label} from "@/components/ui/label";
 
 const formSchema = z.object({
     amount: z.string().min(1, "Ödeme tutarı gereklidir"),
@@ -34,11 +35,26 @@ interface AddPaymentFormProps {
     onSuccess?: () => void;
 }
 
+// Para birimi sembolleri
+const currencySymbols: Record<string, string> = {
+    TRY: "₺",
+    USD: "$",
+    EUR: "€"
+};
+
+// Para birimi formatlama fonksiyonu
+const formatCurrency = (amount: number, currency: string) => {
+    const symbol = currencySymbols[currency] || "₺";
+    return `${amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`;
+};
+
 export function AddPaymentForm({reservationId, totalPrice, totalPaid, onSuccess}: AddPaymentFormProps) {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [payments, setPayments] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [currency, setCurrency] = useState("TRY"); // Varsayılan para birimi
     const supabase = createClientComponentClient();
 
     // Kalan tutarı hesapla
@@ -64,12 +80,29 @@ export function AddPaymentForm({reservationId, totalPrice, totalPaid, onSuccess}
         loadPayments();
     }, [reservationId]);
 
-    const form = useForm<FormValues>({
+    // Rezervasyonun para birimini al
+    useEffect(() => {
+        const fetchCurrency = async () => {
+            const {data, error} = await supabase
+                .from("reservations")
+                .select("currency")
+                .eq("id", reservationId)
+                .single();
+
+            if (data?.currency) {
+                setCurrency(data.currency);
+            }
+        };
+
+        fetchCurrency();
+    }, [reservationId, supabase]);
+
+    const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            amount: remainingAmount > 0 ? remainingAmount.toString() : "",
-            payment_method: "",
-            payment_date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+            amount: "0",
+            payment_method: "cash",
+            payment_date: new Date().toISOString().split("T")[0],
             notes: "",
         },
     });
@@ -127,13 +160,15 @@ export function AddPaymentForm({reservationId, totalPrice, totalPaid, onSuccess}
                             name="amount"
                             render={({field}) => (
                                 <FormItem>
-                                    <FormLabel>Ödeme Tutarı</FormLabel>
+                                    <FormLabel>Ödeme Tutarı ({currencySymbols[currency] || "₺"})</FormLabel>
                                     <FormControl>
                                         <Input
+                                            id="amount"
                                             type="number"
                                             step="0.01"
-                                            placeholder="0.00"
-                                            {...field}
+                                            min="0"
+                                            max={remainingAmount}
+                                            value={field.value}
                                             onChange={(e) => {
                                                 const value = e.target.value;
                                                 const numValue = parseFloat(value);
@@ -141,10 +176,11 @@ export function AddPaymentForm({reservationId, totalPrice, totalPaid, onSuccess}
                                                     field.onChange(value);
                                                 }
                                             }}
+                                            placeholder={`Maksimum ${formatCurrency(remainingAmount, currency)}`}
                                         />
                                     </FormControl>
                                     <FormDescription>
-                                        Kalan tutar: {remainingAmount.toLocaleString('tr-TR')} ₺
+                                        Kalan tutar: {formatCurrency(remainingAmount, currency)}
                                     </FormDescription>
                                     <FormMessage/>
                                 </FormItem>

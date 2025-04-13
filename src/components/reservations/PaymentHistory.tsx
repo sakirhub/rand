@@ -11,11 +11,42 @@ interface PaymentHistoryProps {
     totalPrice: number;
 }
 
+// Para birimi sembolleri
+const currencySymbols: Record<string, string> = {
+    TRY: "₺",
+    USD: "$",
+    EUR: "€"
+};
+
+// Para birimi formatlama fonksiyonu
+const formatCurrency = (amount: number, currency: string) => {
+    const symbol = currencySymbols[currency] || "₺";
+    return `${amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`;
+};
+
 export function PaymentHistory({reservationId, totalPrice}: PaymentHistoryProps) {
     const [payments, setPayments] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [currency, setCurrency] = useState("TRY"); // Varsayılan para birimi
     const supabase = createClientComponentClient();
+
+    // Rezervasyonun para birimini al
+    useEffect(() => {
+        const fetchCurrency = async () => {
+            const {data, error} = await supabase
+                .from("reservations")
+                .select("currency")
+                .eq("id", reservationId)
+                .single();
+
+            if (data?.currency) {
+                setCurrency(data.currency);
+            }
+        };
+
+        fetchCurrency();
+    }, [reservationId, supabase]);
 
     useEffect(() => {
         const loadPayments = async () => {
@@ -57,18 +88,18 @@ export function PaymentHistory({reservationId, totalPrice}: PaymentHistoryProps)
                     <div className="grid grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
                         <div>
                             <div className="text-sm text-muted-foreground">Toplam Tutar</div>
-                            <div className="text-lg font-semibold">{totalPrice.toLocaleString('tr-TR')} ₺</div>
+                            <div className="text-lg font-semibold">{formatCurrency(totalPrice, currency)}</div>
                         </div>
                         <div>
                             <div className="text-sm text-muted-foreground">Ödenen</div>
-                            <div
-                                className="text-lg font-semibold text-green-600">{totalPaid.toLocaleString('tr-TR')} ₺
+                            <div className="text-lg font-semibold text-green-600">
+                                {formatCurrency(totalPaid, currency)}
                             </div>
                         </div>
                         <div>
                             <div className="text-sm text-muted-foreground">Kalan</div>
-                            <div
-                                className="text-lg font-semibold text-yellow-600">{remainingAmount.toLocaleString('tr-TR')} ₺
+                            <div className="text-lg font-semibold text-yellow-600">
+                                {formatCurrency(remainingAmount, currency)}
                             </div>
                         </div>
                     </div>
@@ -88,7 +119,7 @@ export function PaymentHistory({reservationId, totalPrice}: PaymentHistoryProps)
                                     className="flex justify-between items-center p-3 border rounded-lg hover:bg-muted/50 transition-colors"
                                 >
                                     <div>
-                                        <div className="font-medium">{payment.amount.toLocaleString('tr-TR')} ₺</div>
+                                        <div className="font-medium">{formatCurrency(payment.amount, currency)}</div>
                                         <div className="text-sm text-muted-foreground">
                                             {format(new Date(payment.payment_date), "dd MMMM yyyy HH:mm", {locale: tr})}
                                         </div>
