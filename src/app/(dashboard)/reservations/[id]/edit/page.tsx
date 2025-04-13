@@ -2,6 +2,7 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 import { EditReservationForm } from "@/components/reservations/EditReservationForm";
 
@@ -44,17 +45,6 @@ async function getReservation(id: string) {
       console.error("Müşteri getirme hatası:", customerError);
     }
     
-    // Sanatçı bilgilerini getir
-    const { data: artist, error: artistError } = await supabase
-      .from("users")
-      .select("id, name, email")
-      .eq("id", reservation.artist_id)
-      .maybeSingle();
-    
-    if (artistError) {
-      console.error("Sanatçı getirme hatası:", artistError);
-    }
-    
     // Rezervasyon fotoğraflarını getir
     const { data: images, error: imagesError } = await supabase
       .from("reservation_images")
@@ -63,6 +53,67 @@ async function getReservation(id: string) {
     
     if (imagesError) {
       console.error("Rezervasyon fotoğrafları getirme hatası:", imagesError);
+    }
+    
+    // Ödeme bilgilerini getir - Payments tablosu henüz oluşturulmadığı için bu kısmı kaldırıyoruz
+    // const { data: payments, error: paymentsError } = await supabase
+    //   .from("payments")
+    //   .select("*")
+    //   .eq("reservation_id", id);
+    
+    // if (paymentsError) {
+    //   console.error("Ödeme bilgileri getirme hatası:", paymentsError);
+    // }
+    
+    // Sanatçı bilgilerini getir
+    console.log("Sanatçı ID:", reservation.artist_id);
+    
+    // Veritabanı tablolarını kontrol et
+    const { data: tables, error: tablesError } = await supabase
+      .from("information_schema.tables")
+      .select("table_name")
+      .eq("table_schema", "public");
+    
+    if (tablesError) {
+      console.error("Tablo listesi getirme hatası:", tablesError);
+    } else {
+      console.log("Veritabanı tabloları:", tables?.map(t => t.table_name).join(", "));
+    }
+    
+    // Artists tablosunu kontrol et
+    const { data: artistsColumns, error: artistsColumnsError } = await supabase
+      .from("information_schema.columns")
+      .select("column_name")
+      .eq("table_schema", "public")
+      .eq("table_name", "artists");
+    
+    if (artistsColumnsError) {
+      console.error("Artists tablosu kolonları getirme hatası:", artistsColumnsError);
+    } else {
+      console.log("Artists tablosu kolonları:", artistsColumns?.map(c => c.column_name).join(", "));
+    }
+    
+    let artist = null;
+    
+    if (!reservation.artist_id) {
+      console.log("Sanatçı ID bulunamadı, bu rezervasyona atanmış sanatçı yok.");
+    } else {
+      // Artists tablosundan sanatçı bilgilerini çek
+      const { data: artistData, error: artistError } = await supabase
+        .from("artists")
+        .select("id, name, email, phone, bio")
+        .eq("id", reservation.artist_id)
+        .maybeSingle();
+      
+      if (artistError) {
+        console.error("Artists tablosundan sanatçı getirme hatası:", artistError);
+        console.error("Hata detayları:", JSON.stringify(artistError, null, 2));
+      } else if (!artistData) {
+        console.log("Artists tablosunda sanatçı bulunamadı, ID:", reservation.artist_id);
+      } else {
+        console.log("Artists tablosundan sanatçı bulundu:", artistData.name);
+        artist = artistData;
+      }
     }
     
     // Tüm verileri birleştir

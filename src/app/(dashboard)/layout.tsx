@@ -1,8 +1,13 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import Link from "next/link";
+import { UserMenu } from "@/components/dashboard/UserMenu";
+import { Sidebar } from "@/components/dashboard/Sidebar";
 import { Navbar } from "@/components/dashboard/Navbar";
 import { AdminSidebar, DesignerSidebar } from "@/components/dashboard/Sidebar";
+import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default async function DashboardLayout({
   children,
@@ -37,16 +42,18 @@ export default async function DashboardLayout({
   const SidebarComponent = userRole === "admin" ? AdminSidebar : DesignerSidebar;
   
   return (
-    <div className="flex min-h-screen flex-col">
-      <Navbar userRole={userRole} />
-      <div className="flex-1 flex">
-        <div className="hidden lg:block w-64 border-r p-4">
-          <SidebarComponent />
-        </div>
-        <main className="flex-1 p-6">
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+    >
+      <div className="min-h-screen flex flex-col">
+        <Navbar userRole={userRole} />
+        <main className="flex-1 container mx-auto py-6">
           {children}
         </main>
       </div>
-    </div>
+    </ThemeProvider>
   );
 } 

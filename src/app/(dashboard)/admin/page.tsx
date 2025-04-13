@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { WeeklySchedule } from "@/components/dashboard/WeeklySchedule";
 import { ReservationStatusBadge } from "@/components/reservations/ReservationStatusBadge";
-import { Calendar, Clock, User, Hash, Users, Calendar as CalendarIcon, CheckCircle, XCircle } from "lucide-react";
+import { Calendar, Clock, User, Hash, Users, Calendar as CalendarIcon, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 

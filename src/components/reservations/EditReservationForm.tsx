@@ -39,6 +39,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import Image from "next/image";
+
+type Artist = {
+  id: string;
+  full_name: string;
+  position: string;
+};
+
+type Staff = {
+  id: string;
+  full_name: string;
+  position: string;
+};
 
 // Rezervasyon düzenleme formu için şema
 const editReservationFormSchema = z.object({
@@ -46,6 +60,13 @@ const editReservationFormSchema = z.object({
     required_error: "Lütfen durum seçin.",
   }),
   notes: z.string().optional(),
+  price: z.number().min(0, "Fiyat 0'dan küçük olamaz"),
+  currency: z.enum(["EUR", "USD", "TRY"], {
+    required_error: "Para birimi seçiniz",
+  }),
+  deposit_amount: z.number().min(0, "Ön ödeme tutarı 0'dan küçük olamaz").optional(),
+  deposit_received: z.boolean().default(false),
+  staff_id: z.string().optional(),
 });
 
 type EditReservationFormValues = z.infer<typeof editReservationFormSchema>;
@@ -73,10 +94,20 @@ export function EditReservationForm({ reservation, userRole }: EditReservationFo
     reservation.reservation_images || []
   );
   
+  // Sanatçıları getir
+  const [artists, setArtists] = useState<Artist[]>([]);
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [isLoadingStaff, setIsLoadingStaff] = useState(false);
+  
   // Form başlangıç değerleri
   const defaultValues: Partial<EditReservationFormValues> = {
-    status: reservation.status,
+    status: reservation.status || "pending",
     notes: reservation.notes || "",
+    price: Number(reservation.price) || 0,
+    currency: reservation.currency || "EUR",
+    deposit_amount: Number(reservation.deposit_amount) || 0,
+    deposit_received: Boolean(reservation.deposit_received) || false,
+    staff_id: reservation.staff_id || "",
   };
   
   // Form tanımı
@@ -149,44 +180,10 @@ export function EditReservationForm({ reservation, userRole }: EditReservationFo
     const uploadedImageUrls = [];
     
     try {
-      // Oturum kontrolü
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        toast({
-          title: "Oturum Hatası",
-          description: "Oturumunuz sona ermiş. Lütfen tekrar giriş yapın.",
-          variant: "destructive",
-        });
-        router.push("/login");
-        return [];
-      }
-      
       // Fotoğrafları yükle
       for (const image of images) {
-        // Dosya boyutu kontrolü
-        if (image.size > 10 * 1024 * 1024) { // 10MB
-          toast({
-            title: "Dosya Çok Büyük",
-            description: `${image.name} dosyası çok büyük. Maksimum 10MB olmalıdır.`,
-            variant: "destructive",
-          });
-          continue;
-        }
-        
-        // Dosya tipi kontrolü
-        const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-        if (!validTypes.includes(image.type)) {
-          toast({
-            title: "Geçersiz Dosya Tipi",
-            description: `${image.name} dosyası desteklenmeyen bir formatta. Lütfen JPEG, PNG, WEBP veya GIF formatında bir dosya yükleyin.`,
-            variant: "destructive",
-          });
-          continue;
-        }
-        
         const fileExt = image.name.split('.').pop();
-        const fileName = `${reservation.id}/${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+        const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
         
         const { data, error } = await supabase.storage
           .from("reservation_images")
@@ -225,15 +222,6 @@ export function EditReservationForm({ reservation, userRole }: EditReservationFo
         });
       }
       
-      // Yeni fotoğrafları mevcut fotoğraflara ekle
-      setExistingImages(prev => [...prev, ...uploadedImageUrls.map((url, index) => ({
-        id: `temp-${Date.now()}-${index}`,
-        image_url: url.image_url,
-        is_before: url.is_before,
-        reservation_id: reservation.id,
-        created_at: new Date().toISOString()
-      }))]);
-      
       return uploadedImageUrls;
     } catch (error) {
       console.error("Fotoğraflar yüklenirken hata:", error);
@@ -248,59 +236,110 @@ export function EditReservationForm({ reservation, userRole }: EditReservationFo
     }
   };
   
+  // Sanatçıları getir
+  useEffect(() => {
+    const fetchArtists = async () => {
+      const { data, error } = await supabase
+        .from("artists")
+        .select("*")
+        .order("name");
+      
+      if (error) {
+        console.error("Sanatçılar getirilirken hata oluştu:", error);
+        toast({
+          title: "Hata",
+          description: "Sanatçılar yüklenirken bir hata oluştu.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setArtists(data || []);
+    };
+    
+    fetchArtists();
+  }, [supabase, toast]);
+
+  // Personelleri yükle
+  const loadStaff = async () => {
+    setIsLoadingStaff(true);
+    try {
+      const { data, error } = await supabase
+        .from("staff")
+        .select("id, full_name, position, email, phone")
+        .eq("is_active", true)
+        .order("full_name");
+      
+      if (error) throw error;
+      
+      setStaff(data || []);
+    } catch (error) {
+      console.error("Personeller yüklenirken hata:", error);
+      toast({
+        title: "Hata",
+        description: "Personeller yüklenirken bir hata oluştu.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingStaff(false);
+    }
+  };
+
+  // Form yüklendiğinde personel verilerini yükle
+  useEffect(() => {
+    loadStaff();
+  }, []);
+  
   // Form gönderme işlemi
   const onSubmit = async (data: EditReservationFormValues) => {
     setIsLoading(true);
-    
+    console.log("Form verileri:", data); // Debug için
+
     try {
       // Fotoğrafları yükle
       if (images.length > 0) {
         await uploadImages(images, isBeforeImages);
       }
-      
-      // Sadece admin kullanıcılar durum güncelleyebilir
-      if (userRole === "admin") {
-        // Rezervasyonu güncelle
-        const { error } = await supabase
-          .from("reservations")
-          .update({
-            status: data.status,
-            notes: data.notes,
-          })
-          .eq("id", reservation.id);
-        
-        if (error) {
-          throw error;
-        }
-      } else {
-        // Sadece notları güncelle (designer için)
-        const { error } = await supabase
-          .from("reservations")
-          .update({
-            notes: data.notes,
-          })
-          .eq("id", reservation.id);
-        
-        if (error) {
-          throw error;
-        }
+
+      // Rezervasyonu güncelle
+      const updateData = {
+        status: data.status,
+        notes: data.notes,
+        price: data.price !== undefined ? Number(data.price) : reservation.price,
+        currency: data.currency || reservation.currency,
+        deposit_amount: data.deposit_amount !== undefined ? Number(data.deposit_amount) : reservation.deposit_amount,
+        deposit_received: data.deposit_received !== undefined ? data.deposit_received : reservation.deposit_received,
+        staff_id: data.staff_id || reservation.staff_id,
+        updated_at: new Date().toISOString()
+      };
+
+      console.log("Güncellenecek veriler:", updateData); // Debug için
+
+      const { error } = await supabase
+        .from("reservations")
+        .update(updateData)
+        .eq("id", reservation.id);
+
+      if (error) {
+        console.error("Güncelleme hatası:", error); // Debug için
+        throw error;
       }
-      
+
       toast({
         title: "Başarılı",
         description: "Rezervasyon başarıyla güncellendi.",
       });
-      
+
       // Fotoğrafları temizle
       setImages([]);
       setImageUrls([]);
-      
+
       // Rezervasyon detay sayfasına yönlendir
       router.push(`/reservations/${reservation.id}`);
       router.refresh();
     } catch (error) {
       console.error("Rezervasyon güncellenirken hata:", error);
-      
+
       toast({
         title: "Hata",
         description: "Rezervasyon güncellenirken bir hata oluştu.",
@@ -428,6 +467,137 @@ export function EditReservationForm({ reservation, userRole }: EditReservationFo
           </Card>
         </div>
         
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <FormField
+            control={form.control}
+            name="price"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>İşlem Ücreti</FormLabel>
+                <FormControl>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      {...field}
+                      value={field.value || ''}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                        if (!isNaN(value)) {
+                          field.onChange(value);
+                        }
+                      }}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="currency"
+                      render={({ field }) => (
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <SelectTrigger className="w-24">
+                            <SelectValue placeholder="Para Birimi" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="EUR">EUR</SelectItem>
+                            <SelectItem value="USD">USD</SelectItem>
+                            <SelectItem value="TRY">TRY</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <FormField
+            control={form.control}
+            name="deposit_amount"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Ön Ödeme Tutarı</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => {
+                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                      if (!isNaN(value)) {
+                        field.onChange(value);
+                      }
+                    }}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="deposit_received"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormLabel className="font-normal">
+                  Ön Ödeme Alındı
+                </FormLabel>
+              </FormItem>
+            )}
+          />
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <FormField
+            control={form.control}
+            name="staff_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Personel</FormLabel>
+                <Select
+                  disabled={isLoadingStaff}
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Personel seçin" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {isLoadingStaff ? (
+                      <SelectItem value="" disabled>Yükleniyor...</SelectItem>
+                    ) : staff.length > 0 ? (
+                      staff.map(person => (
+                        <SelectItem key={person.id} value={person.id}>
+                          {person.full_name} ({person.position === "admin" ? "Admin" : 
+                                             person.position === "designer" ? "Tasarımcı" : 
+                                             person.position === "tattoo_artist" ? "Dövme Sanatçısı" : 
+                                             person.position === "piercing_artist" ? "Piercing Sanatçısı" : 
+                                             "Bilgi"})
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="" disabled>Personel bulunamadı</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
         <Card>
           <CardHeader>
             <CardTitle>Fotoğraflar</CardTitle>
@@ -453,10 +623,16 @@ export function EditReservationForm({ reservation, userRole }: EditReservationFo
                     .filter(img => img.is_before)
                     .map(image => (
                       <div key={image.id} className="relative aspect-square rounded-md overflow-hidden border group">
-                        <img 
+                        <Image 
                           src={image.image_url} 
                           alt="Öncesi fotoğrafı" 
-                          className="w-full h-full object-cover"
+                          width={128}
+                          height={128}
+                          className="object-cover"
+                          onError={(e) => {
+                            console.error('Image load error:', e);
+                            e.currentTarget.src = '/placeholder.jpg';
+                          }}
                         />
                         <button
                           type="button"
@@ -471,10 +647,16 @@ export function EditReservationForm({ reservation, userRole }: EditReservationFo
                   {/* Yeni öncesi fotoğrafları (önizleme) */}
                   {isBeforeImages && imageUrls.map((url, index) => (
                     <div key={index} className="relative aspect-square rounded-md overflow-hidden border group">
-                      <img 
+                      <Image 
                         src={url} 
                         alt={`Yeni fotoğraf ${index + 1}`} 
-                        className="w-full h-full object-cover"
+                        width={128}
+                        height={128}
+                        className="object-cover"
+                        onError={(e) => {
+                          console.error('Image load error:', e);
+                          e.currentTarget.src = '/placeholder.jpg';
+                        }}
                       />
                       <button
                         type="button"
@@ -522,10 +704,16 @@ export function EditReservationForm({ reservation, userRole }: EditReservationFo
                     .filter(img => !img.is_before)
                     .map(image => (
                       <div key={image.id} className="relative aspect-square rounded-md overflow-hidden border group">
-                        <img 
+                        <Image 
                           src={image.image_url} 
                           alt="Sonrası fotoğrafı" 
-                          className="w-full h-full object-cover"
+                          width={128}
+                          height={128}
+                          className="object-cover"
+                          onError={(e) => {
+                            console.error('Image load error:', e);
+                            e.currentTarget.src = '/placeholder.jpg';
+                          }}
                         />
                         <button
                           type="button"
@@ -540,10 +728,16 @@ export function EditReservationForm({ reservation, userRole }: EditReservationFo
                   {/* Yeni sonrası fotoğrafları (önizleme) */}
                   {!isBeforeImages && imageUrls.map((url, index) => (
                     <div key={index} className="relative aspect-square rounded-md overflow-hidden border group">
-                      <img 
+                      <Image 
                         src={url} 
                         alt={`Yeni fotoğraf ${index + 1}`} 
-                        className="w-full h-full object-cover"
+                        width={128}
+                        height={128}
+                        className="object-cover"
+                        onError={(e) => {
+                          console.error('Image load error:', e);
+                          e.currentTarget.src = '/placeholder.jpg';
+                        }}
                       />
                       <button
                         type="button"

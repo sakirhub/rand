@@ -22,27 +22,49 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MoreHorizontal, Eye, Edit, Trash, Check, X } from "lucide-react";
 import { DeleteReservationButton } from "./DeleteReservationButton";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { ReservationStatusBadge } from "@/components/reservations/ReservationStatusBadge";
 import { Calendar, Clock, User, Hash } from "lucide-react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
-import { Reservation, UserRole } from "@/types";
+
+interface Reservation {
+  id: string;
+  customer_id: string;
+  artist_id: string;
+  service_type: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  duration: number;
+  status: string;
+  notes?: string;
+  artists?: {
+    id: string;
+    name: string;
+    type: string;
+  };
+  customers?: {
+    id: string;
+    email: string;
+    full_name?: string;
+  };
+}
 
 interface ReservationListProps {
   reservations: Reservation[];
-  userRole: UserRole;
+  userRole?: string;
+  userId?: string;
   onStatusChange?: () => void;
 }
 
-export function ReservationList({ reservations, userRole, onStatusChange }: ReservationListProps) {
+export function ReservationList({ reservations, userRole, userId, onStatusChange }: ReservationListProps) {
   const router = useRouter();
   const supabase = createClientComponentClient();
   const { toast } = useToast();
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [processingIds, setProcessingIds] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   
   // Duruma göre filtrele
   const filteredReservations = selectedStatus
@@ -96,18 +118,20 @@ export function ReservationList({ reservations, userRole, onStatusChange }: Rese
         throw error;
       }
       
+      // Yerel state'i güncelle
+      const updatedReservations = reservations.map(res => 
+        res.id === id ? { ...res, status: newStatus } : res
+      );
+      
+      // Ebeveyn bileşeni bilgilendir
+      if (onStatusChange) {
+        onStatusChange();
+      }
+      
       toast({
         title: "Durum güncellendi",
         description: `Rezervasyon durumu "${newStatus}" olarak güncellendi.`,
       });
-      
-      // Yenileme fonksiyonu varsa çağır
-      if (onStatusChange) {
-        onStatusChange();
-      } else {
-        // Yoksa sayfayı yenile
-        router.refresh();
-      }
     } catch (error) {
       console.error("Durum güncellenirken hata:", error);
       
@@ -121,70 +145,118 @@ export function ReservationList({ reservations, userRole, onStatusChange }: Rese
     }
   };
   
-  if (reservations.length === 0) {
+  if (!reservations || reservations.length === 0) {
     return (
       <div className="text-center py-10">
-        <p className="text-muted-foreground mb-4">Henüz rezervasyon bulunmuyor.</p>
-        {(userRole === "admin" || userRole === "designer") && (
-          <Button asChild>
-            <Link href="/reservations/new">Yeni Rezervasyon Oluştur</Link>
-          </Button>
-        )}
+        <p className="text-muted-foreground">Henüz rezervasyon bulunmuyor.</p>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {filteredReservations.map((reservation) => {
-        // Tarih ve saat formatlamaları
-        const reservationDate = format(parseISO(reservation.date), "d MMMM yyyy", { locale: tr });
+        // Tarih ve saat formatla
+        const reservationDate = format(new Date(reservation.date), "d MMMM yyyy", { locale: tr });
         const startTime = reservation.start_time ? reservation.start_time.substring(0, 5) : "";
         const endTime = reservation.end_time ? reservation.end_time.substring(0, 5) : "";
         
+        // Hizmet türünü Türkçe'ye çevir
+        const serviceType = 
+          reservation.service_type === "tattoo" ? "Dövme" : 
+          reservation.service_type === "piercing" ? "Piercing" : 
+          reservation.service_type === "consultation" ? "Konsültasyon" : 
+          reservation.service_type;
+        
+        // İşlem yapılıyor mu?
+        const isProcessing = processingIds.includes(reservation.id);
+        
         return (
-          <Link key={reservation.id} href={`/reservations/${reservation.id}`}>
-            <Card className="h-full hover:bg-muted/50 transition-colors cursor-pointer">
-              <CardHeader className="pb-2">
+          <Card key={reservation.id} className="overflow-hidden">
+            <CardContent className="p-0">
+              <div className="p-6 space-y-4">
                 <div className="flex justify-between items-start">
-                  <CardTitle className="text-lg">{reservation.customers?.name || "İsimsiz Müşteri"}</CardTitle>
+                  <div>
+                    <h3 className="font-medium">{serviceType}</h3>
+                    <div className="flex items-center text-sm text-muted-foreground mt-1">
+                      <Hash className="mr-1 h-3 w-3" />
+                      <span>#{reservation.id.substring(0, 8)}</span>
+                    </div>
+                  </div>
                   <ReservationStatusBadge status={reservation.status} />
                 </div>
-                <CardDescription>
-                  <div className="flex items-center mt-1">
-                    <Hash className="mr-1 h-3 w-3" />
-                    <span>#{reservation.id.substring(0, 8)}</span>
-                  </div>
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pb-2">
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center">
+                
+                <div className="space-y-2">
+                  <div className="flex items-center text-sm">
                     <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
                     <span>{reservationDate}</span>
                   </div>
-                  <div className="flex items-center">
+                  <div className="flex items-center text-sm">
                     <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
                     <span>{startTime} - {endTime}</span>
                   </div>
-                  <div className="flex items-center">
+                  <div className="flex items-center text-sm">
                     <User className="mr-2 h-4 w-4 text-muted-foreground" />
-                    <span>{reservation.artists?.name || "Atanmamış"}</span>
+                    <span>{reservation.customers?.full_name || reservation.customers?.email || "Bilinmeyen Müşteri"}</span>
+                  </div>
+                  <div className="flex items-center text-sm">
+                    <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                    <span>{reservation.artists?.name || "Bilinmeyen Sanatçı"}</span>
                   </div>
                 </div>
-              </CardContent>
-              <CardFooter>
-                <div className="w-full">
-                  <div className="text-xs text-muted-foreground mt-2">
-                    {reservation.service_type === "tattoo" ? "Dövme" : 
-                     reservation.service_type === "piercing" ? "Piercing" : 
-                     reservation.service_type === "consultation" ? "Konsültasyon" : 
-                     reservation.service_type}
-                  </div>
+              </div>
+            </CardContent>
+            <CardFooter className="bg-muted/50 px-6 py-3 flex flex-col space-y-2">
+              <Button asChild variant="outline" size="sm" className="w-full">
+                <Link href={`/reservations/${reservation.id}`}>
+                  Detayları Görüntüle
+                </Link>
+              </Button>
+              
+              {userRole === "admin" && (
+                <div className="flex w-full space-x-2">
+                  {reservation.status === "pending" && (
+                    <Button 
+                      variant="default" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => handleStatusChange(reservation.id, "confirmed")}
+                      disabled={isProcessing}
+                    >
+                      <Check className="mr-1 h-4 w-4" />
+                      Onayla
+                    </Button>
+                  )}
+                  
+                  {(reservation.status === "pending" || reservation.status === "confirmed") && (
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => handleStatusChange(reservation.id, "cancelled")}
+                      disabled={isProcessing}
+                    >
+                      <X className="mr-1 h-4 w-4" />
+                      İptal Et
+                    </Button>
+                  )}
+                  
+                  {reservation.status === "confirmed" && (
+                    <Button 
+                      variant="default" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => handleStatusChange(reservation.id, "completed")}
+                      disabled={isProcessing}
+                    >
+                      <Check className="mr-1 h-4 w-4" />
+                      Tamamlandı
+                    </Button>
+                  )}
                 </div>
-              </CardFooter>
-            </Card>
-          </Link>
+              )}
+            </CardFooter>
+          </Card>
         );
       })}
     </div>

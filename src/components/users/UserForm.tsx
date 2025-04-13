@@ -7,7 +7,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { toast } from "@/components/ui/use-toast";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -46,12 +45,6 @@ const formSchema = z.object({
 
 interface UserFormProps {
   user?: User;
-}
-
-interface ApiError {
-  message: string;
-  code?: string;
-  status?: number;
 }
 
 export function UserForm({ user }: UserFormProps) {
@@ -125,13 +118,9 @@ export function UserForm({ user }: UserFormProps) {
         router.refresh();
         router.push("/admin/users");
       }, 2000);
-    } catch (error: unknown) {
-      const apiError = error as ApiError;
-      toast({
-        title: "Hata",
-        description: apiError.message || "Bir hata oluştu",
-        variant: "destructive",
-      });
+    } catch (err: any) {
+      console.error("Error saving user:", err);
+      setError(err.message || "Kullanıcı kaydedilirken bir hata oluştu.");
     } finally {
       setIsSubmitting(false);
     }

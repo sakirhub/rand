@@ -19,6 +19,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Müşteri formu için şema
 const customerFormSchema = z.object({
@@ -31,6 +38,14 @@ const customerFormSchema = z.object({
   phone: z.string().min(10, {
     message: "Geçerli bir telefon numarası giriniz.",
   }).optional().or(z.literal("")),
+  nationality: z.enum([
+    'turkish', 'german', 'russian', 'british', 'american', 'french', 'italian', 
+    'spanish', 'portuguese', 'dutch', 'belgian', 'swiss', 'austrian', 'swedish', 
+    'norwegian', 'danish', 'finnish', 'polish', 'czech', 'slovak', 'hungarian', 
+    'romanian', 'bulgarian', 'greek', 'ukrainian', 'other'
+  ], {
+    required_error: "Uyruk seçimi zorunludur",
+  }),
   notes: z.string().max(500, {
     message: "Notlar en fazla 500 karakter olabilir.",
   }).optional().or(z.literal("")),
@@ -43,6 +58,7 @@ const defaultValues: Partial<CustomerFormValues> = {
   name: "",
   email: "",
   phone: "",
+  nationality: "turkish",
   notes: "",
 };
 
@@ -64,6 +80,7 @@ export function CustomerForm({ customer, onSuccess }: CustomerFormProps) {
       name: customer.name,
       email: customer.email || "",
       phone: customer.phone || "",
+      nationality: customer.nationality || "turkish",
       notes: customer.notes || "",
     } : defaultValues,
   });
@@ -83,6 +100,7 @@ export function CustomerForm({ customer, onSuccess }: CustomerFormProps) {
             name: data.name,
             email: data.email || null,
             phone: data.phone || null,
+            nationality: data.nationality,
             updated_at: new Date().toISOString(),
           })
           .eq("id", customer.id);
@@ -104,6 +122,7 @@ export function CustomerForm({ customer, onSuccess }: CustomerFormProps) {
           name: data.name,
           email: data.email || null,
           phone: data.phone || null,
+          nationality: data.nationality,
         });
         
         const { data: newCustomer, error } = await supabase
@@ -112,6 +131,7 @@ export function CustomerForm({ customer, onSuccess }: CustomerFormProps) {
             name: data.name,
             email: data.email || null,
             phone: data.phone || null,
+            nationality: data.nationality,
           }])
           .select();
         
@@ -140,7 +160,7 @@ export function CustomerForm({ customer, onSuccess }: CustomerFormProps) {
       // Yönlendirmeyi geciktir
       setTimeout(() => {
         // Müşteriler sayfasına yönlendir
-        router.push("/customers"); // /admin/customers yerine /customers
+        router.push("/customers");
         router.refresh();
       }, 1000);
     } catch (error) {
@@ -210,6 +230,55 @@ export function CustomerForm({ customer, onSuccess }: CustomerFormProps) {
               </FormControl>
               <FormDescription>
                 Müşterinin telefon numarası (opsiyonel).
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <FormField
+          control={form.control}
+          name="nationality"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Uyruk</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Uyruk seçiniz" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="turkish">Türk</SelectItem>
+                  <SelectItem value="german">Deutsch</SelectItem>
+                  <SelectItem value="russian">Русский</SelectItem>
+                  <SelectItem value="british">British</SelectItem>
+                  <SelectItem value="american">American</SelectItem>
+                  <SelectItem value="french">Français</SelectItem>
+                  <SelectItem value="italian">Italiano</SelectItem>
+                  <SelectItem value="spanish">Español</SelectItem>
+                  <SelectItem value="portuguese">Português</SelectItem>
+                  <SelectItem value="dutch">Nederlands</SelectItem>
+                  <SelectItem value="belgian">Belgisch</SelectItem>
+                  <SelectItem value="swiss">Schweizer</SelectItem>
+                  <SelectItem value="austrian">Österreicher</SelectItem>
+                  <SelectItem value="swedish">Svensk</SelectItem>
+                  <SelectItem value="norwegian">Norsk</SelectItem>
+                  <SelectItem value="danish">Dansk</SelectItem>
+                  <SelectItem value="finnish">Suomalainen</SelectItem>
+                  <SelectItem value="polish">Polski</SelectItem>
+                  <SelectItem value="czech">Český</SelectItem>
+                  <SelectItem value="slovak">Slovenský</SelectItem>
+                  <SelectItem value="hungarian">Magyar</SelectItem>
+                  <SelectItem value="romanian">Român</SelectItem>
+                  <SelectItem value="bulgarian">Българин</SelectItem>
+                  <SelectItem value="greek">Έλληνας</SelectItem>
+                  <SelectItem value="ukrainian">Українець</SelectItem>
+                  <SelectItem value="other">Diğer</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormDescription>
+                Müşterinin uyruğunu seçiniz.
               </FormDescription>
               <FormMessage />
             </FormItem>

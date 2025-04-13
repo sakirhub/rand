@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { User } from "@/types";
+import { useState } from "react";
+import { User, UserRole } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserCard } from "./UserCard";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { useToast } from "@/components/ui/use-toast";
 
 interface UserListProps {
   users: User[];

@@ -8,38 +8,61 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { format } from "date-fns";
+import { tr } from "date-fns/locale";
 import { 
   Calendar, 
+  Clock, 
   User, 
   DollarSign, 
   FileText, 
   Image as ImageIcon,
   Check,
   X,
-  Upload
+  Upload,
+  MapPin,
+  Phone,
+  Mail,
+  Info
 } from "lucide-react";
 import Image from "next/image";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { format } from "date-fns";
-import { tr } from "date-fns/locale";
 
 interface ReservationDetailProps {
   reservation: Reservation & { tattoo_artist_user?: { name: string } };
   userRole: string;
 }
 
-// Tip tanımlaması ekleyelim
-type Currency = "TRY" | "USD" | "EUR";
+// Helper functions for status
+const getStatusVariant = (status: string): "default" | "destructive" | "outline" | "secondary" => {
+  switch (status) {
+    case "pending":
+      return "secondary";
+    case "confirmed":
+      return "default";
+    case "completed":
+      return "default";
+    case "cancelled":
+      return "destructive";
+    default:
+      return "default";
+  }
+};
+
+const getStatusLabel = (status: string) => {
+  switch (status) {
+    case "pending":
+      return "Beklemede";
+    case "confirmed":
+      return "Onaylandı";
+    case "completed":
+      return "Tamamlandı";
+    case "cancelled":
+      return "İptal Edildi";
+    default:
+      return status;
+  }
+};
 
 export function ReservationDetail({ reservation, userRole }: ReservationDetailProps) {
   const [isUpdating, setIsUpdating] = useState(false);
@@ -53,24 +76,12 @@ export function ReservationDetail({ reservation, userRole }: ReservationDetailPr
   const router = useRouter();
   const supabase = createClientComponentClient();
 
-  const statusColors = {
-    pending: "bg-yellow-500",
-    approved: "bg-green-500",
-    completed: "bg-blue-500",
-  };
-
-  const statusLabels = {
-    pending: "Beklemede",
-    approved: "Onaylandı",
-    completed: "Tamamlandı",
-  };
-
   const typeLabels = {
     tattoo: "Dövme",
     piercing: "Piercing",
   };
 
-  const currencySymbols: Record<Currency, string> = {
+  const currencySymbols = {
     TRY: "₺",
     USD: "$",
     EUR: "€",
@@ -178,139 +189,242 @@ export function ReservationDetail({ reservation, userRole }: ReservationDetailPr
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
-          <div className="flex justify-between items-start">
-            <CardTitle className="text-xl">
-              Rezervasyon #{reservation.reservation_no}
-            </CardTitle>
-            <Badge className={statusColors[reservation.status]}>
-              {statusLabels[reservation.status]}
-            </Badge>
+        <CardHeader className="space-y-1">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-2xl">Rezervasyon #{reservation.reference_no || reservation.id.substring(0, 8)}</CardTitle>
+            <Badge variant={getStatusVariant(reservation.status)}>{getStatusLabel(reservation.status)}</Badge>
           </div>
         </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="details">
-            <TabsList className="mb-4">
-              <TabsTrigger value="details">Detaylar</TabsTrigger>
-              <TabsTrigger value="images">Fotoğraflar</TabsTrigger>
-            </TabsList>
-            <TabsContent value="details">
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <h3 className="font-medium">Müşteri</h3>
-                    <p>{reservation.customer_name}</p>
+        <CardContent className="space-y-6">
+          {/* Temel Bilgiler */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Randevu Bilgileri</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                  <span>Rezervasyon ID: {reservation.id}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span>Tarih: {formattedDate}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span>Saat: {formattedTime}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                  <span>İşlem Türü: {typeLabels[reservation.type] || reservation.type}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                  <span>Hizmet: {reservation.service_type}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span>Süre: {reservation.duration} dakika</span>
+                </div>
+                {reservation.tattoo_artist_user ? (
+                  <div className="flex items-center space-x-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span>Dövme Sanatçısı: {reservation.tattoo_artist_user.name}</span>
                   </div>
-                  <div>
-                    <h3 className="font-medium">Tür</h3>
-                    <p>{typeLabels[reservation.type]}</p>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span>Dövme Sanatçısı: <span className="text-muted-foreground">Belirtilmemiş</span></span>
                   </div>
-                  <div>
-                    <h3 className="font-medium">Tarih</h3>
-                    <p>{formattedDate}</p>
+                )}
+                {reservation.sales_source && (
+                  <div className="flex items-center space-x-2">
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                    <span>Satış Kaynağı: {reservation.sales_source}</span>
                   </div>
-                  <div>
-                    <h3 className="font-medium">Saat</h3>
-                    <p>{formattedTime}</p>
+                )}
+                <div className="flex items-center space-x-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span>Oluşturulma: {format(new Date(reservation.created_at), "dd.MM.yyyy HH:mm", { locale: tr })}</span>
+                </div>
+                {reservation.updated_at && (
+                  <div className="flex items-center space-x-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span>Son Güncelleme: {format(new Date(reservation.updated_at), "dd.MM.yyyy HH:mm", { locale: tr })}</span>
                   </div>
-                  <div>
-                    <h3 className="font-medium">Fiyat</h3>
-                    <p>
-                      {reservation.price} {currencySymbols[reservation.currency as Currency]}
-                      {reservation.transfer && " (Havale/EFT)"}
-                    </p>
+                )}
+                <div className="flex items-center space-x-2">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                  <span>Transfer: {reservation.transfer ? "Evet" : "Hayır"}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                  <span>Durum: {getStatusLabel(reservation.status)}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Müşteri Bilgileri</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <span>{reservation.customers?.name || "Müşteri bilgisi yok"}</span>
+                </div>
+                {reservation.customers?.email && (
+                  <div className="flex items-center space-x-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span>{reservation.customers.email}</span>
                   </div>
-                  <div>
-                    <h3 className="font-medium">Satış Kaynağı</h3>
-                    <p>{reservation.sales_source || "-"}</p>
+                )}
+                {reservation.customers?.phone && (
+                  <div className="flex items-center space-x-2">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <span>{reservation.customers.phone}</span>
                   </div>
-                  <div>
-                    <h3 className="font-medium">Dövme Sanatçısı</h3>
-                    <p>{reservation.tattoo_artist_user?.name || "-"}</p>
+                )}
+                {reservation.customers?.address && (
+                  <div className="flex items-center space-x-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <span>{reservation.customers.address}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Ödeme Bilgileri */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Ödeme Bilgileri</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <span>Toplam Ücret: {reservation.price} {reservation.currency}</span>
+              </div>
+              {reservation.deposit_amount && reservation.deposit_amount > 0 && (
+                <div className="flex items-center space-x-2">
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex flex-col">
+                    <span>Ön Ödeme: {reservation.deposit_amount} {reservation.currency}</span>
+                    <span className={`text-sm ${reservation.deposit_received ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {reservation.deposit_received ? 'Ödendi' : 'Bekliyor'}
+                    </span>
                   </div>
                 </div>
+              )}
+            </CardContent>
+          </Card>
 
-                {reservation.notes && (
+          {/* Notlar */}
+          {reservation.notes && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Notlar</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-start space-x-2">
+                  <FileText className="h-4 w-4 text-muted-foreground mt-1" />
+                  <p className="whitespace-pre-wrap">{reservation.notes}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Fotoğraflar */}
+          {reservation.reservation_images && reservation.reservation_images.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Fotoğraflar</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {reservation.reservation_images.map((image, index) => (
+                    <div key={image.id} className="relative w-32 h-32 rounded-md overflow-hidden">
+                      <Image
+                        src={image.image_url}
+                        alt={`Dövme - ${reservation.reference_no || reservation.id}`}
+                        width={128}
+                        height={128}
+                        className="object-cover"
+                        onError={(e) => {
+                          console.error('Image load error:', e);
+                          e.currentTarget.src = '/placeholder.jpg';
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Fotoğraf Yükleme */}
+          {userRole === "admin" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Fotoğraf Yükle</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <h3 className="font-medium">Notlar</h3>
-                    <p className="whitespace-pre-wrap">{reservation.notes}</p>
+                    <label htmlFor="before-photo" className="block text-sm font-medium mb-2">
+                      Öncesi Fotoğrafı
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="file"
+                        id="before-photo"
+                        accept="image/*"
+                        onChange={handleBeforeImageUpload}
+                        disabled={uploadingBefore}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => document.getElementById('before-photo')?.click()}
+                        disabled={uploadingBefore}
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        {uploadingBefore ? 'Yükleniyor...' : 'Fotoğraf Seç'}
+                      </Button>
+                    </div>
                   </div>
-                )}
-              </div>
-            </TabsContent>
-            <TabsContent value="images">
-              <div className="space-y-4 mt-4">
-                {reservation.image_before ? (
-                  <div className="relative aspect-video w-full overflow-hidden rounded-lg">
-                    <Image
-                      src={reservation.image_before}
-                      alt="Öncesi"
-                      width={300}
-                      height={200}
-                      className="w-full h-auto object-cover"
-                    />
+
+                  <div>
+                    <label htmlFor="after-photo" className="block text-sm font-medium mb-2">
+                      Sonrası Fotoğrafı
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="file"
+                        id="after-photo"
+                        accept="image/*"
+                        onChange={handleAfterImageUpload}
+                        disabled={uploadingAfter}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => document.getElementById('after-photo')?.click()}
+                        disabled={uploadingAfter}
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        {uploadingAfter ? 'Yükleniyor...' : 'Fotoğraf Seç'}
+                      </Button>
+                    </div>
                   </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-lg">
-                    <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
-                    <p className="text-sm text-muted-foreground">Öncesi fotoğrafı yok</p>
-                  </div>
-                )}
-                
-                {(userRole === "admin" || userRole === "designer" || userRole === "tattoo_artist") && (
-                  <div className="space-y-2">
-                    <Label htmlFor="before-image">Öncesi Fotoğrafı Yükle</Label>
-                    <Input
-                      id="before-image"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleBeforeImageUpload}
-                      disabled={uploadingBefore}
-                    />
-                    {uploadingBefore && <p className="text-sm">Yükleniyor...</p>}
-                  </div>
-                )}
-              </div>
-              <div className="space-y-4 mt-4">
-                {reservation.image_after ? (
-                  <div className="relative aspect-video w-full overflow-hidden rounded-lg">
-                    <Image
-                      src={reservation.image_after}
-                      alt="Sonrası"
-                      width={300}
-                      height={200}
-                      className="w-full h-auto object-cover"
-                    />
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-lg">
-                    <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
-                    <p className="text-sm text-muted-foreground">Sonrası fotoğrafı yok</p>
-                  </div>
-                )}
-                
-                {(userRole === "admin" || userRole === "designer" || userRole === "tattoo_artist") && (
-                  <div className="space-y-2">
-                    <Label htmlFor="after-image">Sonrası Fotoğrafı Yükle</Label>
-                    <Input
-                      id="after-image"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAfterImageUpload}
-                      disabled={uploadingAfter}
-                    />
-                    {uploadingAfter && <p className="text-sm">Yükleniyor...</p>}
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-          </Tabs>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </CardContent>
-        <CardFooter>
-          <Button variant="outline" onClick={() => router.back()} className="w-full">
-            Geri Dön
-          </Button>
-        </CardFooter>
       </Card>
     </div>
   );

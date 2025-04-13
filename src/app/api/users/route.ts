@@ -2,42 +2,6 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-interface UserData {
-  id: string;
-  email: string;
-  name?: string;
-  role?: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export async function GET(request: Request) {
-  try {
-    const supabase = createRouteHandlerClient({ cookies });
-    const { data: users, error } = await supabase
-      .from('users')
-      .select('*');
-
-    if (error) throw error;
-
-    const formattedUsers: UserData[] = users.map((user) => ({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      created_at: user.created_at,
-      updated_at: user.updated_at
-    }));
-
-    return NextResponse.json(formattedUsers);
-  } catch (error) {
-    return NextResponse.json(
-      { error: 'Kullanıcılar getirilirken hata oluştu' },
-      { status: 500 }
-    );
-  }
-}
-
 export async function POST(request: Request) {
   const supabase = createRouteHandlerClient({ cookies });
   
@@ -61,9 +25,9 @@ export async function POST(request: Request) {
   }
   
   try {
-    const body: UserData = await request.json();
+    const { email, full_name, phone } = await request.json();
     
-    if (!body.email || !body.name) {
+    if (!email || !full_name) {
       return NextResponse.json(
         { error: "Email and full name are required" },
         { status: 400 }
@@ -74,17 +38,17 @@ export async function POST(request: Request) {
     const { data: existingProfiles } = await supabase
       .from("profiles")
       .select("id, email")
-      .eq("email", body.email);
+      .eq("email", email);
     
     if (existingProfiles && existingProfiles.length > 0) {
       // Kullanıcı zaten var, profili güncelle
       const { error: updateError } = await supabase
         .from("profiles")
         .update({
-          full_name: body.name,
+          full_name,
           updated_at: new Date().toISOString()
         })
-        .eq("email", body.email);
+        .eq("email", email);
       
       if (updateError) {
         throw updateError;
@@ -99,9 +63,9 @@ export async function POST(request: Request) {
     
     // Yeni kullanıcı oluştur
     const { data: newUser, error: authError } = await supabase.auth.admin.createUser({
-      email: body.email,
+      email,
       email_confirm: true,
-      user_metadata: { full_name: body.name, phone: body.phone },
+      user_metadata: { full_name, phone },
       password: Math.random().toString(36).slice(-8) // Rastgele şifre
     });
     
@@ -115,8 +79,8 @@ export async function POST(request: Request) {
         .from("profiles")
         .insert({
           id: newUser.user.id,
-          email: body.email,
-          full_name: body.name
+          email,
+          full_name
         });
       
       if (profileError) {

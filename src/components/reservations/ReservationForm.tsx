@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -48,7 +48,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import Image from 'next/image'
+import { Checkbox } from "@/components/ui/checkbox";
+import Image from "next/image";
 
 // Rezervasyon formu için şema - customer_id ile
 const reservationFormSchema = z.object({
@@ -57,6 +58,9 @@ const reservationFormSchema = z.object({
   }),
   artist_id: z.string({
     required_error: "Lütfen bir sanatçı seçin.",
+  }),
+  staff_id: z.string({
+    required_error: "Lütfen bir personel seçin.",
   }),
   service_type: z.enum(["tattoo", "piercing", "consultation"], {
     required_error: "Lütfen hizmet türünü seçin.",
@@ -72,6 +76,12 @@ const reservationFormSchema = z.object({
   }),
   notes: z.string().optional(),
   images: z.array(z.string()).optional(),
+  price: z.number().min(0, "Fiyat 0'dan küçük olamaz"),
+  currency: z.enum(["EUR", "USD", "TRY"], {
+    required_error: "Para birimi seçiniz",
+  }),
+  deposit_amount: z.number().min(0, "Ön ödeme tutarı 0'dan küçük olamaz").optional(),
+  deposit_received: z.boolean().default(false),
 });
 
 type ReservationFormValues = z.infer<typeof reservationFormSchema>;
@@ -80,6 +90,10 @@ type ReservationFormValues = z.infer<typeof reservationFormSchema>;
 const defaultValues: Partial<ReservationFormValues> = {
   service_type: "tattoo",
   notes: "",
+  price: 0,
+  currency: "EUR",
+  deposit_amount: 0,
+  deposit_received: false,
 };
 
 interface TimeSlot {
@@ -107,14 +121,17 @@ export function ReservationForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingTimeSlots, setIsLoadingTimeSlots] = useState(false);
   const [artists, setArtists] = useState<Artist[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [selectedArtist, setSelectedArtist] = useState<string | undefined>(undefined);
   const { toast } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [images, setImages] = useState<File[]>([]);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [newCustomerDialogOpen, setNewCustomerDialogOpen] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     email: "",
@@ -151,6 +168,31 @@ export function ReservationForm() {
     };
     
     fetchArtists();
+  }, [supabase, toast]);
+  
+  // Personelleri getir
+  useEffect(() => {
+    const fetchStaff = async () => {
+      const { data, error } = await supabase
+        .from("staff")
+        .select("*")
+        .eq("is_active", true)
+        .order("full_name");
+      
+      if (error) {
+        console.error("Personeller getirilirken hata oluştu:", error);
+        toast({
+          title: "Hata",
+          description: "Personeller yüklenirken bir hata oluştu.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setStaff(data || []);
+    };
+    
+    fetchStaff();
   }, [supabase, toast]);
   
   // Sanatçı seçildiğinde çalışma saatlerini kontrol et ve gerekirse oluştur
@@ -232,18 +274,20 @@ export function ReservationForm() {
           .select("*")
           .eq("artist_id", selectedArtist)
           .eq("day_of_week", selectedDate.getDay())
-          .eq("is_available", true)
-          .single();
+          .eq("is_available", true);
         
         if (workingHoursError) {
           console.error("Çalışma saatleri getirilirken hata:", workingHoursError);
           throw new Error(`Çalışma saatleri hatası: ${JSON.stringify(workingHoursError)}`);
         }
         
-        if (!workingHours) {
+        if (!workingHours || workingHours.length === 0) {
           console.log("Bu gün için çalışma saati bulunamadı");
           return;
         }
+        
+        // İlk çalışma saatini kullan (genelde her gün için tek kayıt olacak)
+        const workingHour = workingHours[0];
         
         // Seçilen tarih için mevcut rezervasyonları getir
         const { data: reservationsData, error: reservationsError } = await supabase
@@ -260,8 +304,8 @@ export function ReservationForm() {
         console.log("Mevcut rezervasyonlar:", reservationsData);
         
         // Çalışma saatlerinden saat dilimlerini oluştur
-        const startTime = parse(workingHours.start_time, "HH:mm:ss", new Date());
-        const endTime = parse(workingHours.end_time, "HH:mm:ss", new Date());
+        const startTime = parse(workingHour.start_time, "HH:mm:ss", new Date());
+        const endTime = parse(workingHour.end_time, "HH:mm:ss", new Date());
         
         // Saatleri 1 saat aralıklarla oluştur
         const slots: TimeSlot[] = [];
@@ -315,7 +359,7 @@ export function ReservationForm() {
   }, [selectedDate, selectedArtist, supabase, toast]);
   
   // Müşterileri getiren fonksiyon - Customers tablosundan müşterileri çeker
-  const fetchCustomers = useCallback(async () => {
+  const fetchCustomers = async () => {
     setIsLoadingCustomers(true);
     
     try {
@@ -359,7 +403,7 @@ export function ReservationForm() {
     } finally {
       setIsLoadingCustomers(false);
     }
-  }, [supabase, toast, form]);
+  };
   
   // Sanatçı seçildiğinde
   const handleArtistChange = (value: string) => {
@@ -501,28 +545,14 @@ export function ReservationForm() {
   // Bileşen mount olduğunda kullanıcıları getir
   useEffect(() => {
     fetchCustomers();
-  }, [fetchCustomers]);
+  }, []);
   
   // Form gönderme - rezervasyon oluşturma fonksiyonu
   const onSubmit = async (data: ReservationFormValues) => {
     setIsLoading(true);
-    
+    console.log("Form verileri:", data); // Debug için
+
     try {
-      // Seçilen müşteri ID'sini kontrol et
-      console.log("Seçilen müşteri ID:", data.customer_id);
-      
-      // Müşteri ID'sinin customers tablosunda olup olmadığını kontrol et
-      const { data: customerCheck, error: customerCheckError } = await supabase
-        .from("customers")
-        .select("id")
-        .eq("id", data.customer_id)
-        .single();
-      
-      if (customerCheckError) {
-        console.error("Müşteri kontrol hatası:", customerCheckError);
-        throw new Error("Seçilen müşteri bulunamadı. Lütfen geçerli bir müşteri seçin.");
-      }
-      
       // Zaman dilimini parçala
       const [startTime] = data.time_slot.split(" - ");
       
@@ -533,55 +563,85 @@ export function ReservationForm() {
       const startDateTime = parse(startTime, "HH:mm", new Date());
       const endDateTime = addMinutes(startDateTime, durationMinutes);
       const endTime = format(endDateTime, "HH:mm");
-      
-      console.log("Hesaplanan saatler:", { startTime, endTime, durationMinutes });
+
+      // Tarihi formatlayarak hazırla
+      const formattedDate = format(data.date, "yyyy-MM-dd");
       
       // Rezervasyon verilerini hazırla
       const reservationData = {
         customer_id: data.customer_id,
         artist_id: data.artist_id,
+        staff_id: data.staff_id,
         service_type: data.service_type,
-        date: format(data.date, "yyyy-MM-dd"),
+        date: formattedDate,
         start_time: `${startTime}:00`,
         end_time: `${endTime}:00`,
         duration: durationMinutes,
-        notes: data.notes || null,
-        status: "pending"
+        notes: data.notes || "",
+        status: "pending",
+        price: Number(data.price) || 0,
+        currency: data.currency || "EUR",
+        deposit_amount: Number(data.deposit_amount) || 0,
+        deposit_received: Boolean(data.deposit_received),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
-      
-      console.log("Rezervasyon verisi:", reservationData);
-      
+
+      console.log("Oluşturulacak rezervasyon:", reservationData); // Debug için
+
       // Rezervasyonu oluştur
-      const { data: newReservation, error } = await supabase
+      const { data: newReservation, error: insertError } = await supabase
         .from("reservations")
-        .insert([reservationData])
-        .select();
-      
-      if (error) {
-        console.error("Rezervasyon oluşturma hatası:", error);
-        throw error;
+        .insert(reservationData)
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error("Rezervasyon oluşturma hatası:", insertError);
+        throw new Error(`Rezervasyon oluşturulamadı: ${insertError.message}`);
       }
-      
+
+      if (!newReservation) {
+        throw new Error("Rezervasyon oluşturuldu fakat veri dönmedi");
+      }
+
       console.log("Oluşturulan rezervasyon:", newReservation);
-      
+
       // Fotoğrafları yükle
-      if (images.length > 0 && newReservation && newReservation.length > 0) {
-        const imageUrls = await uploadImages(newReservation[0].id);
-        
-        if (imageUrls.length > 0) {
-          const { error: imageError } = await supabase
-            .from("reservation_images")
-            .insert(
-              imageUrls.map(url => ({
-                reservation_id: newReservation[0].id,
-                image_url: url,
-                is_before: true
-              }))
-            );
+      if (images.length > 0) {
+        try {
+          const imageUrls = await uploadImages(newReservation.id);
           
-          if (imageError) {
-            console.error("Fotoğraflar kaydedilirken hata:", imageError);
+          if (imageUrls.length > 0) {
+            const { error: imageError } = await supabase
+              .from("reservation_images")
+              .insert(
+                imageUrls.map(url => ({
+                  reservation_id: newReservation.id,
+                  image_url: url,
+                  is_before: true,
+                  created_at: new Date().toISOString()
+                }))
+              );
+            
+            if (imageError) {
+              console.error("Fotoğraflar kaydedilirken hata:", imageError);
+              // Fotoğraf hatası rezervasyon oluşturmayı engellemeyecek
+              toast({
+                title: "Uyarı",
+                description: "Rezervasyon oluşturuldu fakat fotoğraflar yüklenirken hata oluştu.",
+                variant: "destructive",
+              });
+            }
           }
+        } catch (imageUploadError) {
+          console.error("Fotoğraf yükleme hatası:", imageUploadError);
+          // Fotoğraf hatası rezervasyon oluşturmayı engellemeyecek
+          toast({
+            title: "Uyarı",
+            description: "Rezervasyon oluşturuldu fakat fotoğraflar yüklenemedi.",
+            variant: "destructive",
+          });
         }
       }
       
@@ -592,12 +652,13 @@ export function ReservationForm() {
       
       // Rezervasyonlar sayfasına yönlendir
       router.push("/reservations");
+      router.refresh();
     } catch (error) {
       console.error("Rezervasyon oluşturulurken hata:", error);
       
       toast({
         title: "Hata",
-        description: "Rezervasyon oluşturulurken bir hata oluştu. Lütfen tekrar deneyin.",
+        description: error instanceof Error ? error.message : "Rezervasyon oluşturulurken bir hata oluştu.",
         variant: "destructive",
       });
     } finally {
@@ -607,7 +668,7 @@ export function ReservationForm() {
   
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <FormField
             control={form.control}
@@ -673,6 +734,35 @@ export function ReservationForm() {
                     {artists.map((artist) => (
                       <SelectItem key={artist.id} value={artist.id}>
                         {artist.name} ({artist.type === "tattoo" ? "Dövme" : artist.type === "piercing" ? "Piercing" : "Her İkisi"})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="staff_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Personel</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Personel seçin" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {staff.map((person) => (
+                      <SelectItem key={person.id} value={person.id}>
+                        {person.full_name} ({person.position === "admin" ? "Admin" : 
+                                           person.position === "designer" ? "Tasarımcı" : 
+                                           person.position === "tattoo_artist" ? "Dövme Sanatçısı" : 
+                                           person.position === "piercing_artist" ? "Piercing Sanatçısı" : 
+                                           "Bilgi"})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -788,7 +878,7 @@ export function ReservationForm() {
                         Bu tarihte uygun saat bulunmuyor
                       </SelectItem>
                     ) : (
-                      <SelectItem value="select-date-artist" disabled>
+                      <SelectItem value="no-date-artist" disabled>
                         Önce tarih ve sanatçı seçin
                       </SelectItem>
                     )}
@@ -857,11 +947,15 @@ export function ReservationForm() {
                   {imageUrls.map((url, index) => (
                     <div key={index} className="relative w-24 h-24 rounded-md overflow-hidden border">
                       <Image 
-                        src={url}
-                        alt={`Referans ${index + 1}`}
+                        src={url} 
+                        alt={`Referans ${index + 1}`} 
                         width={96}
                         height={96}
-                        className="w-full h-full object-cover"
+                        className="object-cover"
+                        onError={(e) => {
+                          console.error('Image load error:', e);
+                          e.currentTarget.src = '/placeholder.jpg';
+                        }}
                       />
                       <Button
                         type="button"
@@ -896,6 +990,97 @@ export function ReservationForm() {
                 Referans olarak kullanılacak fotoğrafları ekleyin (opsiyonel).
               </FormDescription>
             </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField
+              control={form.control}
+              name="price"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>İşlem Ücreti</FormLabel>
+                  <FormControl>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        {...field}
+                        value={field.value === 0 ? '' : field.value}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                          if (!isNaN(value)) {
+                            field.onChange(value);
+                          }
+                        }}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="currency"
+                        render={({ field }) => (
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <SelectTrigger className="w-24">
+                              <SelectValue placeholder="Para Birimi" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="EUR">EUR</SelectItem>
+                              <SelectItem value="USD">USD</SelectItem>
+                              <SelectItem value="TRY">TRY</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField
+              control={form.control}
+              name="deposit_amount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Ön Ödeme Tutarı</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      {...field}
+                      value={field.value === 0 ? '' : field.value}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                        if (!isNaN(value)) {
+                          field.onChange(value);
+                        }
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="deposit_received"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormLabel className="font-normal">
+                    Ön Ödeme Alındı
+                  </FormLabel>
+                </FormItem>
+              )}
+            />
           </div>
           
           <div className="flex justify-end space-x-4">

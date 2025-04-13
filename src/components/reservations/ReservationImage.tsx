@@ -3,18 +3,16 @@
 import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import Image from 'next/image'
+import Image from "next/image";
 
 interface ReservationImageProps {
   src: string;
   alt?: string;
   className?: string;
   isBeforeImage?: boolean;
-  width?: number;
-  height?: number;
 }
 
-export function ReservationImage({ src, alt = "Rezervasyon fotoğrafı", className, isBeforeImage, width, height }: ReservationImageProps) {
+export function ReservationImage({ src, alt = "Rezervasyon fotoğrafı", className, isBeforeImage }: ReservationImageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   
@@ -27,12 +25,12 @@ export function ReservationImage({ src, alt = "Rezervasyon fotoğrafı", classNa
           Fotoğraf yüklenemedi
         </div>
       ) : (
-        <Image
-          src={src}
-          alt={alt || "Reservation image"}
-          width={width || 300}
-          height={height || 300}
-          className="w-full h-full object-cover"
+        <Image 
+          src={src} 
+          alt={alt}
+          width={256}
+          height={256}
+          className="object-cover"
           onLoad={() => setIsLoading(false)}
           onError={() => {
             setIsLoading(false);

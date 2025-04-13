@@ -140,6 +140,11 @@ export function AdminSidebar() {
       icon: <Palette className="h-4 w-4 mr-2" />,
     },
     {
+      href: "/admin/staff",
+      title: "Personel",
+      icon: <Users className="h-4 w-4 mr-2" />,
+    },
+    {
       href: "/admin/reservations",
       title: "Rezervasyonlar",
       icon: <Calendar className="h-4 w-4 mr-2" />,
@@ -170,6 +175,11 @@ export function DesignerSidebar() {
       href: "/designer/artists",
       title: "Sanatçılar",
       icon: <Palette className="h-4 w-4 mr-2" />,
+    },
+    {
+      href: "/designer/staff",
+      title: "Personel",
+      icon: <Users className="h-4 w-4 mr-2" />,
     },
     {
       href: "/designer/reservations",

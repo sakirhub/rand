@@ -11,10 +11,9 @@ export interface User {
 export interface Customer {
   id: string;
   name: string;
+  email: string;
   phone?: string;
-  email?: string;
-  notes?: string;
-  created_at: string;
+  address?: string;
 }
 
 export type ReservationStatus = "pending" | "approved" | "completed";
@@ -33,13 +32,17 @@ export interface ReservationImage {
 
 export interface Reservation {
   id: string;
-  reservation_no: string;
+  reference_no?: string;
   customer_id: string;
-  customer_name: string;
+  customers?: Customer;
   type: ReservationType;
+  service_type: string;
   date: string;
+  duration: number;
   price: number;
   currency: string;
+  deposit_amount?: number;
+  deposit_received?: boolean;
   status: ReservationStatus;
   transfer: boolean;
   sales_source?: string;
@@ -50,4 +53,16 @@ export interface Reservation {
   design_image?: string;
   reservation_images?: ReservationImage[];
   created_at: string;
+  updated_at?: string;
+}
+
+export interface Staff {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  position: "admin" | "designer" | "tattoo_artist" | "piercing_artist" | "info";
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 } 
