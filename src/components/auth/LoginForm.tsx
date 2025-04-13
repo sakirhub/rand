@@ -8,6 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import Image from "next/image";
+import { Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
@@ -16,6 +19,7 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClientComponentClient();
+  const { theme, setTheme } = useTheme();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,51 +75,82 @@ export function LoginForm() {
     }
   };
 
+  const toggleTheme = () => {
+    setTheme(theme === "dark" ? "light" : "dark");
+  };
+
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <CardTitle>Giriş Yap</CardTitle>
-        <CardDescription>
-          Dövme/Piercing Stüdyo Yönetim Sistemine giriş yapın
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">E-posta</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+    <div className="w-full max-w-md mx-auto">
+      <div className="flex justify-center mb-6">
+        <Image 
+          src="/logo.png" 
+          alt="Logo" 
+          width={150} 
+          height={150} 
+          className="dark:invert"
+        />
+      </div>
+      
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Giriş Yap</CardTitle>
+            <CardDescription>
+              Dövme/Piercing Stüdyo Yönetim Sistemine giriş yapın
+            </CardDescription>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Şifre</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={toggleTheme}
+            className="rounded-full"
+          >
+            {theme === "dark" ? (
+              <Sun className="h-5 w-5" />
+            ) : (
+              <Moon className="h-5 w-5" />
+            )}
+            <span className="sr-only">Tema değiştir</span>
           </Button>
-        </form>
-      </CardContent>
-      <CardFooter className="flex justify-center">
-        <p className="text-sm text-muted-foreground">
-          Hesabınız yok mu? Yöneticinizle iletişime geçin.
-        </p>
-      </CardFooter>
-    </Card>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">E-posta</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Şifre</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
+            </Button>
+          </form>
+        </CardContent>
+        <CardFooter className="flex justify-center">
+          <p className="text-sm text-muted-foreground">
+            Hesabınız yok mu? Yöneticinizle iletişime geçin.
+          </p>
+        </CardFooter>
+      </Card>
+    </div>
   );
 } 

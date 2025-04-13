@@ -21,6 +21,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { AdminSidebar, DesignerSidebar } from "@/components/dashboard/Sidebar";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   Home, 
   Palette, 
@@ -32,6 +33,7 @@ import {
   Settings,
   LogOut
 } from "lucide-react";
+import Image from "next/image";
 
 interface NavbarProps {
   userRole?: string;
@@ -58,6 +60,7 @@ export function Navbar({ userRole = "admin" }: NavbarProps) {
         { href: "/admin", label: "Dashboard", icon: <Home className="h-4 w-4" /> },
         { href: "/admin/customers", label: "Müşteriler", icon: <Users className="h-4 w-4" /> },
         { href: "/admin/artists", label: "Sanatçılar", icon: <Palette className="h-4 w-4" /> },
+        { href: "/admin/staff", label: "Personel", icon: <Users className="h-4 w-4" /> },
         { href: "/admin/reservations", label: "Rezervasyonlar", icon: <Calendar className="h-4 w-4" /> },
         { href: "/admin/settings", label: "Ayarlar", icon: <Settings className="h-4 w-4" /> },
       ];
@@ -66,6 +69,7 @@ export function Navbar({ userRole = "admin" }: NavbarProps) {
         { href: "/designer", label: "Dashboard", icon: <Home className="h-4 w-4" /> },
         { href: "/designer/customers", label: "Müşteriler", icon: <Users className="h-4 w-4" /> },
         { href: "/designer/artists", label: "Sanatçılar", icon: <Palette className="h-4 w-4" /> },
+        { href: "/designer/staff", label: "Personel", icon: <Users className="h-4 w-4" /> },
         { href: "/designer/reservations", label: "Rezervasyonlar", icon: <Calendar className="h-4 w-4" /> },
       ];
     }
@@ -76,7 +80,7 @@ export function Navbar({ userRole = "admin" }: NavbarProps) {
 
   return (
     <div className="border-b">
-      <div className="flex h-16 items-center px-4">
+      <div className="container mx-auto flex h-[160px] items-center">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild className="lg:hidden">
             <Button variant="ghost" size="icon">
@@ -87,7 +91,14 @@ export function Navbar({ userRole = "admin" }: NavbarProps) {
           <SheetContent side="left" className="w-[240px] sm:w-[300px]">
             <div className="flex h-16 items-center px-4">
               <Link href="/" className="flex items-center">
-                <span className="font-bold">Stüdyo Yönetim</span>
+                <Image
+                  src="/logo.png"
+                  alt="Logo"
+                  width={80}
+                  height={80}
+                  className="mr-2"
+                  priority
+                />
               </Link>
               <Button 
                 variant="ghost" 
@@ -105,8 +116,14 @@ export function Navbar({ userRole = "admin" }: NavbarProps) {
           </SheetContent>
         </Sheet>
         <Link href="/" className="flex items-center">
-          <span className="font-bold hidden md:inline-block">Stüdyo Yönetim Sistemi</span>
-          <span className="font-bold md:hidden">SYS</span>
+          <Image
+            src="/logo.png"
+            alt="Logo"
+            width={140}
+            height={140}
+            className="mr-2"
+            priority
+          />
         </Link>
         <div className="hidden lg:flex items-center space-x-1 ml-6">
           {navItems.map((item) => (
@@ -124,6 +141,7 @@ export function Navbar({ userRole = "admin" }: NavbarProps) {
           ))}
         </div>
         <div className="ml-auto flex items-center space-x-2">
+          <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
