@@ -6,16 +6,18 @@ import {Button} from "@/components/ui/button";
 import {ArtistForm} from "@/components/artists/ArtistForm";
 import {ChevronLeft} from "lucide-react";
 
+interface PageProps {
+    params: {
+        id: string;
+    };
+}
+
 export const metadata = {
     title: "Sanatçı Düzenle | Stüdyo Yönetim Sistemi",
     description: "Sanatçı bilgilerini düzenleyin",
 };
 
-export default async function EditArtistPage({
-                                                 params,
-                                             }: {
-    params: { id: string };
-}) {
+export default async function EditArtistPage({params}: PageProps) {
     const supabase = createServerComponentClient({cookies});
 
     // Kullanıcı oturumunu kontrol et
