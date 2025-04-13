@@ -4,10 +4,11 @@ import {notFound} from "next/navigation";
 import {ReservationDetail} from "@/components/reservations/ReservationDetail";
 
 export default async function ReservationDetailPage({
-                                                        params
-                                                    }: {
-    params: { role: string; id: string }
-}) {
+    params,
+}: {
+  params: Promise<{ role: string; id: string }>;
+})
+ {
     const cookieStore = cookies();
     const supabase = createServerComponentClient({cookies: () => cookieStore});
 
