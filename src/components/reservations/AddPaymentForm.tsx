@@ -107,30 +107,48 @@ export function AddPaymentForm({reservationId, totalPrice, totalPaid, onSuccess}
         },
     });
 
-    const onSubmit = async (data: z.infer<typeof formSchema>) => {
+    const onSubmit = async (values: z.infer<typeof formSchema>) => {
         try {
-            const {error} = await supabase
-                .from("payments")
-                .insert({
-                    reservation_id: reservationId,
-                    amount: data.amount,
-                    payment_method: data.payment_method,
-                    payment_date: data.payment_date,
-                    notes: data.notes,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                });
+            setIsLoading(true);
+            setError(null);
 
-            if (error) throw error;
+            // Son ödeme kaydını al
+            const {data: lastPayment} = await supabase
+                .from('payments')
+                .select('ref_no')
+                .order('ref_no', {ascending: false})
+                .limit(1)
+                .single();
 
-            // Formu sıfırla
+            // Yeni ref no oluştur (6 haneli)
+            const lastRefNo = lastPayment?.ref_no ? parseInt(lastPayment.ref_no) : 0;
+            const newRefNo = (lastRefNo + 1).toString().padStart(6, '0');
+
+            const {error: insertError} = await supabase
+                .from('payments')
+                .insert([
+                    {
+                        reservation_id: reservationId,
+                        amount: parseFloat(values.amount),
+                        payment_method: values.payment_method,
+                        payment_date: values.payment_date,
+                        notes: values.notes,
+                        ref_no: newRefNo,
+                        currency: currency
+                    }
+                ]);
+
+            if (insertError) throw insertError;
+
+            toast.success("Ödeme başarıyla kaydedildi");
             form.reset();
-
-            // Sayfayı yenile
-            window.location.reload();
-        } catch (error) {
-            console.error("Ödeme eklenirken hata:", error);
-            toast.error("Ödeme eklenirken bir hata oluştu. Lütfen tekrar deneyin.");
+            onSuccess?.();
+        } catch (err) {
+            console.error('Ödeme kaydedilirken hata:', err);
+            setError('Ödeme kaydedilirken bir hata oluştu');
+            toast.error("Ödeme kaydedilirken bir hata oluştu");
+        } finally {
+            setIsLoading(false);
         }
     };
 

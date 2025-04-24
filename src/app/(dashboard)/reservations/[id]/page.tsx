@@ -318,6 +318,22 @@ export default async function ReservationDetailPage({
                                         </div>
                                     </div>
 
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <h3 className="text-sm font-medium text-gray-500">Otel Bilgisi</h3>
+                                            <p className="mt-1 text-sm text-gray-900">{reservation.hotel_info || "-"}</p>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-sm font-medium text-gray-500">Oda Bilgisi</h3>
+                                            <p className="mt-1 text-sm text-gray-900">{reservation.room_info || "-"}</p>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="text-sm font-medium text-gray-500">Servis Alanı</h3>
+                                        <p className="mt-1 text-sm text-gray-900">{reservation.service_area || "-"}</p>
+                                    </div>
+
                                     {reservation.notes && (
                                         <div className="space-y-2 pt-4 border-t">
                                             <div className="text-sm font-medium text-muted-foreground">Notlar</div>

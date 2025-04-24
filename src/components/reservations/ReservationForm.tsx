@@ -39,25 +39,32 @@ type FormData = {
     deposit_amount: number;
     deposit_received: boolean;
     notes?: string;
-    customer_id?: string;
-    artist_id?: string;
+    customer_id: string;
+    artist_id: string;
     staff_id?: string;
     images?: File[];
     duration: number;
+    hotel_info?: string;
+    room_info?: string;
+    service_area?: string;
 };
 
 const formSchema = z.object({
-    time: z.string(),
-    date: z.date(),
-    service_type: z.string(),
-    price: z.number(),
-    currency: z.enum(["TRY", "USD", "EUR"]).default("TRY"),
-    deposit_amount: z.number().default(0),
-    deposit_received: z.boolean().default(false),
+    customer_id: z.string().min(1, "Müşteri seçimi zorunludur"),
+    artist_id: z.string().min(1, "Sanatçı seçimi zorunludur"),
+    date: z.date({
+        required_error: "Tarih seçimi zorunludur",
+    }),
+    time: z.string().min(1, "Saat seçimi zorunludur"),
+    service_type: z.string().min(1, "Hizmet türü seçimi zorunludur"),
+    price: z.number().min(0, "Fiyat 0'dan küçük olamaz"),
+    deposit_amount: z.number().min(0, "Depozito tutarı 0'dan küçük olamaz"),
     notes: z.string().optional(),
-    customer_id: z.string().optional(),
-    artist_id: z.string().optional(),
-    staff_id: z.string().optional(),
+    hotel_info: z.string().optional(),
+    room_info: z.string().optional(),
+    service_area: z.string().optional(),
+    currency: z.enum(["TRY", "USD", "EUR"]).default("TRY"),
+    deposit_received: z.boolean().default(false),
     images: z.array(z.instanceof(File)).optional(),
     duration: z.number().default(60),
 });
@@ -65,7 +72,7 @@ const formSchema = z.object({
 type ReservationFormValues = z.infer<typeof formSchema>;
 
 // Varsayılan değerler
-const defaultValues: FormData = {
+const defaultValues: Partial<FormData> = {
     time: "",
     date: new Date(),
     service_type: "",
@@ -79,6 +86,9 @@ const defaultValues: FormData = {
     staff_id: "",
     images: [],
     duration: 60,
+    hotel_info: "",
+    room_info: "",
+    service_area: "",
 };
 
 interface TimeSlot {
@@ -112,7 +122,12 @@ export function ReservationForm() {
     const supabase = createClientComponentClient();
     const {toast} = useToast();
     const [isLoading, setIsLoading] = useState(false);
-    const [timeSlots, setTimeSlots] = useState<string[]>([]);
+    const [timeSlots, setTimeSlots] = useState<string[]>([
+        "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
+        "12:00", "12:30", "13:00", "13:30", "14:00", "14:30",
+        "15:00", "15:30", "16:00", "16:30", "17:00", "17:30",
+        "18:00", "18:30", "19:00", "19:30", "20:00"
+    ]);
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
     const [images, setImages] = useState<File[]>([]);
@@ -131,25 +146,13 @@ export function ReservationForm() {
     });
     const [isAddingCustomer, setIsAddingCustomer] = useState(false);
     const [currentUser, setCurrentUser] = useState<any>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [isLoadingTimeSlots, setIsLoadingTimeSlots] = useState(false);
 
     // Form tanımlaması
     const form = useForm<FormData>({
         resolver: zodResolver(formSchema),
-        defaultValues: {
-            time: "",
-            date: new Date(),
-            service_type: "",
-            price: 0,
-            currency: "TRY" as const,
-            deposit_amount: 0,
-            deposit_received: false,
-            notes: "",
-            customer_id: "",
-            artist_id: "",
-            staff_id: "",
-            images: [],
-            duration: 60,
-        },
+        defaultValues,
     });
 
     // Form değerlerini izle
@@ -276,105 +279,41 @@ export function ReservationForm() {
 
     // Sanatçı değiştiğinde veya tarih seçildiğinde uygun zaman dilimlerini getir
     useEffect(() => {
-        const fetchTimeSlots = async () => {
-            if (!selectedDate || !selectedArtist) return;
-
-            setIsLoading(true);
-            setTimeSlots([]);
-
+        const loadTimeSlots = async (selectedDate: Date) => {
             try {
-                // Seçilen tarih için formatla
-                const formattedDate = format(selectedDate, "yyyy-MM-dd");
+                setIsLoadingTimeSlots(true);
+                
+                // Çalışma saatleri (09:00 - 20:00)
+                const startHour = 9;
+                const endHour = 20;
+                const interval = 30; // 30 dakikalık aralıklar
 
-                // Sanatçının çalışma saatlerini getir
-                const {data: workingHours, error: workingHoursError} = await supabase
-                    .from("artist_working_hours")
-                    .select("*")
-                    .eq("artist_id", selectedArtist)
-                    .eq("day_of_week", selectedDate.getDay())
-                    .eq("is_available", true);
-
-                if (workingHoursError) {
-                    console.error("Çalışma saatleri getirilirken hata:", workingHoursError);
-                    throw new Error(`Çalışma saatleri hatası: ${JSON.stringify(workingHoursError)}`);
+                // Saatleri oluştur
+                const slots: string[] = [];
+                for (let hour = startHour; hour < endHour; hour++) {
+                    for (let minute = 0; minute < 60; minute += interval) {
+                        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                        slots.push(time);
+                    }
                 }
 
-                if (!workingHours || workingHours.length === 0) {
-                    console.log("Bu gün için çalışma saati bulunamadı");
-                    return;
-                }
-
-                // İlk çalışma saatini kullan (genelde her gün için tek kayıt olacak)
-                const workingHour = workingHours[0];
-
-                // Seçilen tarih için mevcut rezervasyonları getir
-                const {data: reservationsData, error: reservationsError} = await supabase
-                    .from("reservations")
-                    .select("*")
-                    .eq("artist_id", selectedArtist)
-                    .eq("date", formattedDate);
-
-                if (reservationsError) {
-                    console.error("Rezervasyonlar getirilirken hata:", reservationsError);
-                    throw new Error(`Rezervasyonlar hatası: ${JSON.stringify(reservationsError)}`);
-                }
-
-                console.log("Mevcut rezervasyonlar:", reservationsData);
-
-                // Çalışma saatlerinden saat dilimlerini oluştur
-                const startTime = parse(workingHour.start_time, "HH:mm:ss", new Date());
-                const endTime = parse(workingHour.end_time, "HH:mm:ss", new Date());
-
-                // Saatleri 1 saat aralıklarla oluştur
-                const slots: TimeSlot[] = [];
-                let currentTime = startTime;
-
-                while (isBefore(currentTime, endTime) || isEqual(currentTime, endTime)) {
-                    const slotStart = format(currentTime, "HH:mm");
-
-                    // Bu saat dilimi için rezervasyon var mı kontrol et
-                    const isReserved = reservationsData?.some(reservation => {
-                        const reservationStart = reservation.start_time.substring(0, 5);
-                        const reservationEnd = reservation.end_time.substring(0, 5);
-
-                        // Eğer bu saat dilimi herhangi bir rezervasyonla çakışıyorsa
-                        return slotStart >= reservationStart && slotStart < reservationEnd;
-                    });
-
-                    slots.push({
-                        start: slotStart,
-                        end: format(addMinutes(currentTime, 60), "HH:mm"), // Sabit 1 saat
-                        available: !isReserved
-                    });
-
-                    // Bir sonraki saate geç
-                    currentTime = addMinutes(currentTime, 60);
-                }
-
-                setTimeSlots(slots.map(slot => slot.start));
+                setTimeSlots(slots);
             } catch (error) {
-                console.error("Rezervasyonlar getirilirken hata:", error);
-
-                let errorMessage = "Rezervasyonlar yüklenirken bir hata oluştu.";
-
-                if (error instanceof Error) {
-                    errorMessage = error.message;
-                }
-
+                console.error("Error loading time slots:", error);
                 toast({
                     title: "Hata",
-                    description: errorMessage,
+                    description: "Saatler yüklenirken bir hata oluştu",
                     variant: "destructive",
                 });
             } finally {
-                setIsLoading(false);
+                setIsLoadingTimeSlots(false);
             }
         };
 
-        if (selectedDate && selectedArtist) {
-            fetchTimeSlots();
+        if (selectedDate) {
+            loadTimeSlots(selectedDate);
         }
-    }, [selectedDate, selectedArtist, supabase, toast]);
+    }, [selectedDate, toast]);
 
     // Müşterileri getiren fonksiyon - Customers tablosundan müşterileri çeker
     const fetchCustomers = async () => {
@@ -566,70 +505,71 @@ export function ReservationForm() {
     // Form gönderme - rezervasyon oluşturma fonksiyonu
     const handleSubmit = async (data: FormData) => {
         try {
-            setIsSubmitting(true);
-            console.log("Form data before submission:", data);
+            setIsLoading(true);
+            setError(null);
 
-            // Seçilen saati Date nesnesine dönüştür
+            // Son rezervasyon numarasını al
+            const {data: lastReservation} = await supabase
+                .from('reservations')
+                .select('reservation_no')
+                .order('reservation_no', {ascending: false})
+                .limit(1)
+                .single();
+
+            // Yeni rezervasyon numarası oluştur (6 haneli)
+            const lastResNo = lastReservation?.reservation_no ? parseInt(lastReservation.reservation_no) : 0;
+            const newResNo = (lastResNo + 1).toString().padStart(6, '0');
+
+            // Seçilen zamanı Date nesnesine çevir
             const selectedTime = parse(data.time, "HH:mm", new Date());
-            const startTime = format(selectedTime, "HH:mm:ss");
-            const endTime = format(addMinutes(selectedTime, data.duration), "HH:mm:ss");
+            const startTime = selectedTime.toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'});
+            const endTime = addMinutes(selectedTime, data.duration * 60).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'});
 
             // Rezervasyon verilerini hazırla
             const reservationData = {
-                service_type: data.service_type,
-                date: format(data.date, "yyyy-MM-dd"),
-                start_time: startTime,
-                end_time: endTime,
-                price: data.price,
-                currency: data.currency,
-                deposit_amount: data.deposit_amount || 0,
-                deposit_received: data.deposit_received || false,
-                notes: data.notes,
                 customer_id: data.customer_id,
                 artist_id: data.artist_id,
-                staff_id: data.staff_id,
+                service_type: data.service_type,
+                date: data.date,
+                start_time: startTime,
+                end_time: endTime,
+                price: Number(data.price),
+                deposit_amount: Number(data.deposit_amount) || 0,
+                remaining_amount: Number(data.price) - (Number(data.deposit_amount) || 0),
                 status: "pending",
                 duration: data.duration,
-                remaining_amount: data.price - (data.deposit_amount || 0),
+                notes: data.notes,
+                currency: data.currency,
+                reservation_no: newResNo,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
+                hotel_info: data.hotel_info,
+                room_info: data.room_info,
+                service_area: data.service_area,
             };
 
-            console.log("Reservation data to be submitted:", reservationData);
+            // Rezervasyonu oluştur
+            const {error: insertError} = await supabase
+                .from('reservations')
+                .insert([reservationData]);
 
-            // Supabase'e kaydet
-            const { data: newReservation, error } = await supabase
-                .from("reservations")
-                .insert([reservationData])
-                .select()
-                .single();
-
-            if (error) {
-                console.error("Supabase error:", error);
-                throw error;
-            }
-
-            // Görselleri yükle
-            if (newReservation && images.length > 0) {
-                await uploadImages(newReservation.id);
-            }
+            if (insertError) throw insertError;
 
             toast({
                 title: "Başarılı",
-                description: "Rezervasyon başarıyla oluşturuldu.",
+                description: "Rezervasyon başarıyla oluşturuldu",
             });
-
-            router.push("/reservations");
-            router.refresh();
-        } catch (error) {
-            console.error("Error submitting form:", error);
+            router.push('/reservations');
+        } catch (err) {
+            console.error('Rezervasyon oluşturulurken hata:', err);
+            setError('Rezervasyon oluşturulurken bir hata oluştu');
             toast({
                 title: "Hata",
-                description: "Rezervasyon oluşturulurken bir hata oluştu.",
+                description: "Rezervasyon oluşturulurken bir hata oluştu",
                 variant: "destructive",
             });
         } finally {
-            setIsSubmitting(false);
+            setIsLoading(false);
         }
     };
 
@@ -835,20 +775,73 @@ export function ReservationForm() {
                     <FormField
                         control={form.control}
                         name="notes"
-                        render={({field}) => (
+                        render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Notlar</FormLabel>
                                 <FormControl>
                                     <Textarea
-                                        placeholder="Rezervasyon hakkında eklemek istediğiniz notlar"
+                                        placeholder="Rezervasyon ile ilgili notlar..."
                                         className="resize-none"
                                         {...field}
                                     />
                                 </FormControl>
                                 <FormDescription>
-                                    Sanatçıya iletmek istediğiniz özel notlar (opsiyonel).
+                                    Rezervasyon ile ilgili özel notlarınızı buraya ekleyebilirsiniz.
                                 </FormDescription>
-                                <FormMessage/>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                            control={form.control}
+                            name="hotel_info"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Otel Bilgisi</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="Otel adı..." {...field} />
+                                    </FormControl>
+                                    <FormDescription>
+                                        Müşterinin kaldığı otel bilgisi
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+
+                        <FormField
+                            control={form.control}
+                            name="room_info"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Oda Bilgisi</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="Oda numarası..." {...field} />
+                                    </FormControl>
+                                    <FormDescription>
+                                        Müşterinin oda numarası
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+
+                    <FormField
+                        control={form.control}
+                        name="service_area"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Servis Alanı</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="Servis alanı..." {...field} />
+                                </FormControl>
+                                <FormDescription>
+                                    Dövme/piercing yapılacak bölge
+                                </FormDescription>
+                                <FormMessage />
                             </FormItem>
                         )}
                     />
@@ -916,13 +909,11 @@ export function ReservationForm() {
                                             <Input
                                                 type="number"
                                                 {...field}
-                                                value={field.value === 0 ? '' : field.value}
                                                 onChange={(e) => {
                                                     const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                                    if (!isNaN(value)) {
-                                                        field.onChange(value);
-                                                    }
+                                                    field.onChange(value);
                                                 }}
+                                                value={field.value === 0 ? '' : field.value}
                                             />
                                         </div>
                                     </FormControl>
@@ -971,13 +962,11 @@ export function ReservationForm() {
                                         <Input
                                             type="number"
                                             {...field}
-                                            value={field.value === 0 ? '' : field.value}
                                             onChange={(e) => {
                                                 const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                                if (!isNaN(value)) {
-                                                    field.onChange(value);
-                                                }
+                                                field.onChange(value);
                                             }}
+                                            value={field.value === 0 ? '' : field.value}
                                         />
                                     </FormControl>
                                     <FormMessage/>

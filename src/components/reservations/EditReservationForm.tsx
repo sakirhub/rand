@@ -9,7 +9,7 @@ import * as z from "zod";
 import {format, addHours} from "date-fns";
 import {tr} from "date-fns/locale";
 import {Button} from "@/components/ui/button";
-import {Form, FormControl, FormField, FormItem, FormLabel, FormMessage,} from "@/components/ui/form";
+import {Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription} from "@/components/ui/form";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from "@/components/ui/select";
 import {Textarea} from "@/components/ui/textarea";
 import {useToast} from "@/components/ui/use-toast";
@@ -55,6 +55,15 @@ const editReservationFormSchema = z.object({
     deposit_amount: z.number().min(0, "Ön ödeme tutarı 0'dan küçük olamaz").optional(),
     deposit_received: z.boolean().default(false),
     staff_id: z.string().optional(),
+    customer_id: z.string().min(1, "Müşteri seçimi zorunludur"),
+    artist_id: z.string().min(1, "Sanatçı seçimi zorunludur"),
+    date: z.date({
+        required_error: "Tarih seçimi zorunludur",
+    }),
+    time: z.string().min(1, "Saat seçimi zorunludur"),
+    hotel_info: z.string().optional(),
+    room_info: z.string().optional(),
+    service_area: z.string().optional(),
 });
 
 type EditReservationFormValues = z.infer<typeof editReservationFormSchema>;
@@ -105,6 +114,13 @@ export function EditReservationForm({
         deposit_amount: Number(reservation.deposit_amount) || 0,
         deposit_received: Boolean(reservation.deposit_received) || false,
         staff_id: reservation.staff_id || "",
+        customer_id: reservation.customer_id || "",
+        artist_id: reservation.artist_id || "",
+        date: new Date(reservation.date) || new Date(),
+        time: reservation.time || "",
+        hotel_info: reservation.hotel_info || "",
+        room_info: reservation.room_info || "",
+        service_area: reservation.service_area || "",
     };
 
     // Form tanımı
@@ -495,6 +511,62 @@ export function EditReservationForm({
                                                 {...field}
                                             />
                                         </FormControl>
+                                        <FormDescription>
+                                            Rezervasyon ile ilgili özel notlarınızı buraya ekleyebilirsiniz.
+                                        </FormDescription>
+                                        <FormMessage/>
+                                    </FormItem>
+                                )}
+                            />
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="hotel_info"
+                                    render={({field}) => (
+                                        <FormItem>
+                                            <FormLabel>Otel Bilgisi</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="Otel adı..." {...field} />
+                                            </FormControl>
+                                            <FormDescription>
+                                                Müşterinin kaldığı otel bilgisi
+                                            </FormDescription>
+                                            <FormMessage/>
+                                        </FormItem>
+                                    )}
+                                />
+
+                                <FormField
+                                    control={form.control}
+                                    name="room_info"
+                                    render={({field}) => (
+                                        <FormItem>
+                                            <FormLabel>Oda Bilgisi</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="Oda numarası..." {...field} />
+                                            </FormControl>
+                                            <FormDescription>
+                                                Müşterinin oda numarası
+                                            </FormDescription>
+                                            <FormMessage/>
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                            <FormField
+                                control={form.control}
+                                name="service_area"
+                                render={({field}) => (
+                                    <FormItem>
+                                        <FormLabel>Servis Alanı</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="Servis alanı..." {...field} />
+                                        </FormControl>
+                                        <FormDescription>
+                                            Dövme/piercing yapılacak bölge
+                                        </FormDescription>
                                         <FormMessage/>
                                     </FormItem>
                                 )}
